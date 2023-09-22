@@ -46,4 +46,9 @@ def read_harp_bin(file):
 
     return ret_pd
 
-
+def load_harp_messages_from_bin(filename):
+    binary_data = np.fromfile(filename, dtype=np.uint8)
+    N = binary_data[1] + 2
+    num_records = len(binary_data) // N
+    data_array = binary_data.reshape(num_records, N)
+    return data_array

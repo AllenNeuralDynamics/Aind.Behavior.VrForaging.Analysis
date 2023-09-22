@@ -15,3 +15,6 @@ def load_bonsai_config(bonsai_path: str = "bonsai"):
     library_locations = root.findall("LibraryFolders/LibraryFolder")
     for i in library_locations:
         os.environ['PATH'] += os.path.join(bonsai_path, i.attrib['path'])+";"
+
+
+
