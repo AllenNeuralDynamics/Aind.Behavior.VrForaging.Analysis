@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 import clr
-clr.AddReference("Bonsai.Harp")
-from Bonsai.Harp import HarpMessage
+
 
 _SECONDS_PER_TICK = 32e-6
 _payloadtypes = {
@@ -59,19 +58,20 @@ def read_bytes_from_bin(filename):
     return data_array
 
 
-def bytes_to_harp_message(bytes) -> HarpMessage:
-    return HarpMessage(bytes)
+_CORE_IMPORTED = False
 
-
-def read_harp_bin_to_messages(filename: str) -> np.array:
-    return array_to_harp_messages(read_bytes_from_bin(filename))
-
-
-def array_to_harp_messages(data: np.array) -> np.array:
-    return np.apply_along_axis(lambda x: bytes_to_harp_message(x.tobytes()), axis=1, arr=data)
+def import_core():
+    clr.AddReference("Bonsai.Harp")
+    globals()["Bonsai"] = __import__("Bonsai", fromlist=["Harp"])
+    globals()["Bonsai.Harp"] = getattr(globals()["Bonsai"], "Harp")
+    global _CORE_IMPORTED
+    _CORE_IMPORTED = True
 
 
 class HarpInterface:
+    if _CORE_IMPORTED is False:
+        import_core()
+
     def __init__(self, Device) -> None:
         self.RegisterMap = Device.RegisterMap
         self.Device = Device
@@ -89,8 +89,24 @@ class HarpInterface:
         return vectorized_method(data)
 
     def file_to_payloads(self, filename: str) -> np.array:
-        data = read_harp_bin_to_messages(filename)
+        data = self.read_harp_bin_to_messages(filename)
         return self.harp_messages_to_payloads(data)
+
+    @staticmethod
+    def bytes_to_harp_message(in_bytes) -> Bonsai.Harp.HarpMessage:
+        return Bonsai.Harp.HarpMessage(in_bytes)
+
+    def read_harp_bin_to_messages(self, filename: str) -> np.array:
+        return self.array_to_harp_messages(read_bytes_from_bin(filename))
+
+    def array_to_harp_messages(self, data: np.array) -> np.array:
+        return np.apply_along_axis(
+            lambda x: self.bytes_to_harp_message(x.tobytes()
+                                                 ), axis=1, arr=data)
+
+    @staticmethod
+    def read_bytes_from_bin(filename):
+        read_bytes_from_bin(filename)
 
 
 class Device(HarpInterface):
@@ -108,10 +124,10 @@ class Device(HarpInterface):
         self.module = module
         super().__init__(module.Device)
 
-    def message_to_payload_method(self, msg_or_address: HarpMessage | int) -> any:
+    def message_to_payload_method(self, msg_or_address: Bonsai.Harp.HarpMessage | int) -> any:
         if isinstance(msg_or_address, int):
             address = msg_or_address
-        elif isinstance(msg_or_address, HarpMessage):
+        elif isinstance(msg_or_address, Bonsai.Harp.HarpMessage):
             address = msg_or_address.Address
         else:
             raise ValueError("msg_or_address must be either a HarpMessage or an int")
