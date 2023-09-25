@@ -64,9 +64,9 @@ def import_core():
     clr.AddReference("Bonsai.Harp")
     globals()["Bonsai"] = __import__("Bonsai", fromlist=["Harp"])
     globals()["Bonsai.Harp"] = getattr(globals()["Bonsai"], "Harp")
+    globals()["System"] = __import__("System")
     global _CORE_IMPORTED
     _CORE_IMPORTED = True
-
 
 class HarpInterface:
     if _CORE_IMPORTED is False:
@@ -76,7 +76,7 @@ class HarpInterface:
         self.RegisterMap = Device.RegisterMap
         self.Device = Device
 
-    def message_to_payload_method(self, *arg) -> any:
+    def message_to_payload_method(self, *arg, **kwargs) -> any:
         raise NotImplementedError("Must be implemented!")
 
     def harp_messages_to_payloads(self,
@@ -91,6 +91,13 @@ class HarpInterface:
     def file_to_payloads(self, filename: str) -> np.array:
         data = self.read_harp_bin_to_messages(filename)
         return self.harp_messages_to_payloads(data)
+
+    def file_to_dataframe(self, filename: str) -> pd.DataFrame:
+        payloads = self.file_to_payloads(filename)
+        df = pd.DataFrame([[entry.Seconds, entry.Value] for entry in payloads],
+                          columns=["Seconds", "Value"])
+        df.set_index("Seconds", inplace=True)
+        return df
 
     @staticmethod
     def bytes_to_harp_message(in_bytes) -> Bonsai.Harp.HarpMessage:
@@ -108,15 +115,21 @@ class HarpInterface:
     def read_bytes_from_bin(filename):
         read_bytes_from_bin(filename)
 
+    @staticmethod
+    def unpack_enum_flag(df: pd.DataFrame,
+                         flag_class: object,
+                         exclude_default_flag: bool = True) -> pd.DataFrame:
+        if exclude_default_flag:
+            flags = [val.ToString() for val in System.Enum.GetValues(flag_class) if int(val) > 0]
+        else:
+            flags = [val.ToString() for val in System.Enum.GetValues(flag_class)]
+
+        for flag in flags:
+            df[flag] = df["Value"].apply(lambda entry: entry.HasFlag(System.Enum.Parse(flag_class, flag)))
+        return df
+
 
 class Device(HarpInterface):
-    """_summary_
-    This class represents a specific harp device interface.
-    It is used to have access to the device-specific register map,
-    and corresponding high-level interface methods.
-    Args:
-        HarpInterface (_type_): _description_
-    """    
     def __init__(self, board_name: str):
         clr.AddReference(f"Harp.{board_name}")
         package = __import__('Harp', fromlist=[board_name])
