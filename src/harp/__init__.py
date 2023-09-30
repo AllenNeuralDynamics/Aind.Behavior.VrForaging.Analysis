@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
 import clr
-import json
-
 
 _SECONDS_PER_TICK = 32e-6
 _payloadtypes = {
@@ -130,7 +128,7 @@ class HarpInterface:
         return df
 
 
-class Device(HarpInterface):
+class HarpDevice(HarpInterface):
     def __init__(self, board_name: str):
         clr.AddReference(f"Harp.{board_name}")
         package = __import__('Harp', fromlist=[board_name])
@@ -149,53 +147,3 @@ class Device(HarpInterface):
         GetPayloadMethod = _type.GetMethod("GetTimestampedPayload")
         return lambda msg: GetPayloadMethod.Invoke(None, [msg])
 
-
-class SoftwareEvent:
-    def __init__(self, value: str) -> None:
-        self.content = json.loads(value)
-        self.seconds = self.content['timestamp']
-        self.name = self.content['name']
-
-    def __str__(self) -> str:
-        return f"SoftwareEvent({self.seconds} @ {self.name})"
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
-class SoftwareEventCollection:
-    def __init__(self, events: list[SoftwareEvent]) -> None:
-        self.events = events
-        self.name = events[0].name
-        self.table = self._generate_event_table()
-
-    def __getitem__(self, key: int) -> SoftwareEvent:
-        return self.events[key]
-
-    def __iter__(self):
-        return (x for x in self.events)
-
-    def __str__(self) -> str:
-        return f"SoftwareEventCollection({len(self.events)} events)"
-
-    def __repr__(self) -> str:
-        return f"SoftwareEventCollection({self.name} with {len(self.events)} events)"
-
-    def _generate_event_table(self):
-        df = pd.DataFrame([entry.content for entry in self.events])
-        df.rename(columns={"timestamp": "Seconds"}, inplace=True)
-        return df
-
-    def json_normalize(self, *args, **kwargs):
-        df = pd.json_normalize([entry.content for entry in self.events],
-                               *args, **kwargs)
-        df.rename(columns={"timestamp": "Seconds"}, inplace=True)
-        df.set_index("Seconds", inplace=True)
-        return df
-
-    @classmethod
-    def from_json_file(self, filename: str):
-        with open(filename, "r") as f:
-            return SoftwareEventCollection(
-                [SoftwareEvent(event) for event in f.readlines()]
-                )
