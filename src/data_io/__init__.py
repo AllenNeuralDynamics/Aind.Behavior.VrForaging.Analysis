@@ -5,7 +5,7 @@ from typing import Optional, Callable, List
 from pathlib import Path
 from dotmap import DotMap
 from enum import Enum
-
+import harp
 # Data stream sources
 
 
@@ -26,12 +26,15 @@ class DataStreamSource:
             raise ValueError(f"Path {path} is not a directory")
         self.name = name if name is not None else path.name
         self.files = self.path.glob(file_pattern_matching)
-        self.streams = self._populate_streams(autoload)
+        self.populate_streams(autoload)
 
-    def _populate_streams(self) -> DotMap:
+    def populate_streams(self, autoload) -> DotMap:
         """Populates the streams attribute with a list of DataStream objects"""
         streams = [DataStream(file) for file in self.files]
-        return DotMap({stream.name: stream for stream in streams})
+        if autoload is True:
+            for stream in streams:
+                stream.load_from_file()
+        self.streams = DotMap({stream.name: stream for stream in streams})
 
     def __str__(self) -> str:
         return f"DataStreamSource from {self.path}"
@@ -45,15 +48,37 @@ class SoftwareEventSource(DataStreamSource):
                  name: str | None = None,
                  file_pattern_matching: str = "*.json",
                  autoload=True) -> None:
-        super().__init__(path, name, file_pattern_matching)
-        self._populate_streams(autoload)
+        super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def _populate_streams(self, autoload) -> DotMap:
+    def populate_streams(self, autoload: bool) -> DotMap:
         streams = [SoftwareEvent(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        return DotMap({stream.name: stream for stream in streams})
+        self.streams = DotMap({stream.name: stream for stream in streams})
+
+
+class HarpSource(DataStreamSource):
+    def __init__(self, device: harp.HarpDevice | str,
+                 path: str | Path,
+                 name: str | None = None,
+                 file_pattern_matching: str = "*",
+                 autoload=False) -> None:
+        if isinstance(device, str):
+            device = harp.HarpDevice(device)
+            self.device = device
+        elif isinstance(device, harp.HarpDevice):
+            self.device = device
+        else:
+            raise ValueError("device must be a HarpDevice or a string")
+        super().__init__(path, name, file_pattern_matching, autoload=autoload)
+
+    def populate_streams(self, autoload: bool) -> DotMap:
+        streams = [HarpStream(self.device, file) for file in self.files]
+        if autoload is True:
+            for stream in streams:
+                stream.load_from_file()
+        self.streams = DotMap({stream.name: stream for stream in streams})
 
 
 ## Data stream types
@@ -125,6 +150,30 @@ class DataStream:
     def __repr__(self) -> str:
         return f"{self.dataType} stream with {len(self.data)} entries"
 
+
+class HarpStream(DataStream):
+    def __init__(self,
+                 device: harp.HarpDevice | str,
+                 path: Optional[Path] = None, **kwargs):
+        if isinstance(device, str):
+            device = harp.HarpDevice(device)
+            self.device = device
+        elif isinstance(device, harp.HarpDevice):
+            self.device = device
+        else:
+            raise ValueError("device must be a HarpDevice or a string")
+        super().__init__(
+            path=path, **kwargs,
+            data_type=DataStreamType.HARP,
+            reader=None,
+            parser=None,
+            )
+
+    def load_from_file(self, path: Optional[Path] = None) -> None:
+        """Loads the datastream from a file"""
+        if path is None:
+            path = self.path
+        self.data = self.device.file_to_dataframe(path)
 
 class SoftwareEvent(DataStream):
     """Represents a generic Software event."""
