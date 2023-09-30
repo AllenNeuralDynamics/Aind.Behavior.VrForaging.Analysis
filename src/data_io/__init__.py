@@ -25,7 +25,7 @@ class DataStreamSource:
         if not path.is_dir():
             raise ValueError(f"Path {path} is not a directory")
         self.name = name if name is not None else path.name
-        self.files = self.path.glob(file_pattern_matching)
+        self.files = [f for f in self.path.glob(file_pattern_matching)]
         self.populate_streams(autoload)
 
     def populate_streams(self, autoload) -> DotMap:
