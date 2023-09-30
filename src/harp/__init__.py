@@ -143,7 +143,12 @@ class HarpDevice(HarpInterface):
             address = msg_or_address.Address
         else:
             raise ValueError("msg_or_address must be either a HarpMessage or an int")
-        _type = self.Device.RegisterMap[address]
+
+        try:
+            _type = self.Device.RegisterMap[address]
+        except KeyError:
+            raise ValueError(f"Address {address} not found in RegisterMap")
+
         GetPayloadMethod = _type.GetMethod("GetTimestampedPayload")
         return lambda msg: GetPayloadMethod.Invoke(None, [msg])
 
