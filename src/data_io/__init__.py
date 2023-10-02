@@ -63,7 +63,8 @@ class HarpSource(DataStreamSource):
                  path: str | Path,
                  name: str | None = None,
                  file_pattern_matching: str = "*",
-                 autoload=False) -> None:
+                 autoload=False,
+                 remove_suffix: Optional[str] = "Register__") -> None:
         if isinstance(device, str):
             device = harp.HarpDevice(device)
             self.device = device
@@ -71,10 +72,18 @@ class HarpSource(DataStreamSource):
             self.device = device
         else:
             raise ValueError("device must be a HarpDevice or a string")
+        self.remove_suffix = remove_suffix
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
     def populate_streams(self, autoload: bool) -> DotMap:
-        streams = [HarpStream(self.device, file) for file in self.files]
+        if self.remove_suffix:
+            streams = [HarpStream(
+                self.device,
+                file,
+                name=file.stem.replace(self.remove_suffix, ""))
+                for file in self.files]
+        else:
+            streams = [HarpStream(self.device, file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
