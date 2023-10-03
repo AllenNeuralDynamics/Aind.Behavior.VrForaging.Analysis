@@ -25,8 +25,24 @@ class DataStreamSource:
         if not path.is_dir():
             raise ValueError(f"Path {path} is not a directory")
         self._name = name if name is not None else path.name
-        self.files = [f for f in self._path.glob(file_pattern_matching)]
+        self._files = [f for f in self._path.glob(file_pattern_matching)]
         self.populate_streams(autoload)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def path(self) -> Path:
+        if self._path is None:
+            raise ValueError("Path is not defined")
+        if isinstance(self._path, str):
+            self._path = Path(self._path)
+        return self._path
+
+    @property
+    def files(self) -> List[Path]:
+        return self._files
 
     def populate_streams(self, autoload) -> DotMap:
         """Populates the streams attribute with a list of DataStream objects"""
@@ -67,13 +83,17 @@ class HarpSource(DataStreamSource):
                  remove_suffix: Optional[str] = "Register__") -> None:
         if isinstance(device, str):
             device = harp.HarpDevice(device)
-            self.device = device
+            self._device = device
         elif isinstance(device, harp.HarpDevice):
-            self.device = device
+            self._device = device
         else:
             raise ValueError("device must be a HarpDevice or a string")
         self.remove_suffix = remove_suffix
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
+
+    @property
+    def device(self) -> harp.HarpDevice:
+        return self._device
 
     def populate_streams(self, autoload: bool) -> DotMap:
         if self.remove_suffix:
@@ -194,9 +214,9 @@ class HarpStream(DataStream):
                  path: Optional[Path] = None, **kwargs):
         if isinstance(device, str):
             device = harp.HarpDevice(device)
-            self.device = device
+            self._device = device
         elif isinstance(device, harp.HarpDevice):
-            self.device = device
+            self._device = device
         else:
             raise ValueError("device must be a HarpDevice or a string")
         super().__init__(
@@ -205,6 +225,10 @@ class HarpStream(DataStream):
             reader=None,
             parser=None,
             )
+
+    @property
+    def device(self) -> harp.HarpDevice:
+        return self._device
 
     def load_from_file(self,
                        path: Optional[Path] = None,
