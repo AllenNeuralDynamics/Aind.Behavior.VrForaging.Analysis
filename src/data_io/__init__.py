@@ -129,17 +129,20 @@ class DataStream:
         self.data = None
 
     def load_from_file(self,
-                       reader: Optional[Callable] = None
+                       reader: Optional[Callable] = None,
+                       force_reload: bool = False,
                        ) -> None:
         """Loads the data stream from a file into memory"""
-        reader = reader if reader is not None else self.reader
-        if reader:
-            self.data = reader(self.path)
-            return self.data
-        else:
-            raise NotImplementedError(
-                "A valid .load_from_file() method must be implemented,\
-                    or a file_reader function must be provided")
+        force_reload = True if self.data is None else force_reload
+        if force_reload:
+            reader = reader if reader is not None else self.reader
+            if reader:
+                self.data = reader(self.path)
+                return self.data
+            else:
+                raise NotImplementedError(
+                    "A valid .load_from_file() method must be implemented,\
+                        or a file_reader function must be provided")
 
     @classmethod
     def parse(self, value: any, **kwargs):
@@ -178,11 +181,16 @@ class HarpStream(DataStream):
             parser=None,
             )
 
-    def load_from_file(self, path: Optional[Path] = None) -> None:
+    def load_from_file(self,
+                       path: Optional[Path] = None,
+                       force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
-        if path is None:
-            path = self.path
-        self.data = self.device.file_to_dataframe(path)
+        force_reload = True if self.data is None else force_reload
+        if force_reload:
+            if path is None:
+                path = self.path
+            self.data = self.device.file_to_dataframe(path)
+
 
 class SoftwareEvent(DataStream):
     """Represents a generic Software event."""
@@ -199,16 +207,20 @@ class SoftwareEvent(DataStream):
         self.data = json.loads(value)
         return self.data
 
-    def load_from_file(self, path: Optional[str | Path] = None) -> None:
+    def load_from_file(self,
+                       path: Optional[str | Path] = None,
+                       force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
-        if path is None:
-            path = self.path
-        with open(path, "r") as f:
-            self.data = pd.DataFrame(
-                [self._load_single_event(value=event) for event in f.readlines()]
-                )
-            self.data.rename(columns={"timestamp": "Seconds"}, inplace=True)
-            self.data.set_index("Seconds", inplace=True)
+        force_reload = True if self.data is None else force_reload
+        if force_reload:
+            if path is None:
+                path = self.path
+            with open(path, "r") as f:
+                self.data = pd.DataFrame(
+                    [self._load_single_event(value=event) for event in f.readlines()]
+                    )
+                self.data.rename(columns={"timestamp": "Seconds"}, inplace=True)
+                self.data.set_index("Seconds", inplace=True)
 
     def json_normalize(self, *args, **kwargs):
         if self.data is None:
