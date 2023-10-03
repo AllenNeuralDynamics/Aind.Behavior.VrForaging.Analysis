@@ -21,11 +21,11 @@ class DataStreamSource:
 
         if isinstance(path, str):
             path = Path(path)
-        self.path = path
+        self._path = path
         if not path.is_dir():
             raise ValueError(f"Path {path} is not a directory")
-        self.name = name if name is not None else path.name
-        self.files = [f for f in self.path.glob(file_pattern_matching)]
+        self._name = name if name is not None else path.name
+        self.files = [f for f in self._path.glob(file_pattern_matching)]
         self.populate_streams(autoload)
 
     def populate_streams(self, autoload) -> DotMap:
@@ -37,10 +37,10 @@ class DataStreamSource:
         self.streams = DotMap({stream.name: stream for stream in streams})
 
     def __str__(self) -> str:
-        return f"DataStreamSource from {self.path}"
+        return f"DataStreamSource from {self._path}"
 
     def __repr__(self) -> str:
-        return f"DataStreamSource from {self.path}"
+        return f"DataStreamSource from {self._path}"
 
 
 class SoftwareEventSource(DataStreamSource):
@@ -116,29 +116,54 @@ class DataStream:
         if path:
             if isinstance(path, str):
                 path = Path(path)
-            self.path = path
+            self._path = path
             if not path.is_file():
                 raise ValueError(f"Path {path} is not a file")
-            self.name = name if name is not None else path.stem
+            self._name = name if name is not None else path.stem
         else:
             if name is None:
                 raise ValueError("Either path or name must be provided")
-        self.dataType = data_type
+        self._dataType = data_type
         self.reader = reader
         self.parser = parser
-        self.data = None
+        self._data = None
+
+    @property
+    def data(self,
+             populate: bool = False,
+             force_reload: bool = False,
+             ) -> any:
+        if populate is True:
+            self.load_from_file(force_reload=force_reload)
+        return self._data
+
+    @property
+    def data_type(self) -> DataStreamType:
+        return self._dataType
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def path(self) -> Path:
+        if self._path is None:
+            raise ValueError("Path is not defined")
+        if isinstance(self._path, str):
+            self._path = Path(self._path)
+        return self._path
 
     def load_from_file(self,
                        reader: Optional[Callable] = None,
                        force_reload: bool = False,
                        ) -> None:
         """Loads the data stream from a file into memory"""
-        force_reload = True if self.data is None else force_reload
+        force_reload = True if self._data is None else force_reload
         if force_reload:
             reader = reader if reader is not None else self.reader
             if reader:
-                self.data = reader(self.path)
-                return self.data
+                self._data = reader(self._path)
+                return self._data
             else:
                 raise NotImplementedError(
                     "A valid .load_from_file() method must be implemented,\
@@ -149,7 +174,7 @@ class DataStream:
         """Loads the data stream from a value"""
         ds = DataStream(kwargs)
         if ds.parser:
-            ds.data = ds.parser(value)
+            ds._data = ds.parser(value)
             return ds
         else:
             raise NotImplementedError(
@@ -157,10 +182,10 @@ class DataStream:
                     or a reader function must be provided")
 
     def __str__(self) -> str:
-        return f"{self.dataType} stream with {len(self.data)} entries"
+        return f"{self._dataType} stream with {len(self._data)} entries"
 
     def __repr__(self) -> str:
-        return f"{self.dataType} stream with {len(self.data)} entries"
+        return f"{self._dataType} stream with {len(self._data)} entries"
 
 
 class HarpStream(DataStream):
@@ -185,11 +210,11 @@ class HarpStream(DataStream):
                        path: Optional[Path] = None,
                        force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
-        force_reload = True if self.data is None else force_reload
+        force_reload = True if self._data is None else force_reload
         if force_reload:
             if path is None:
-                path = self.path
-            self.data = self.device.file_to_dataframe(path)
+                path = self._path
+            self._data = self.device.file_to_dataframe(path)
 
 
 class SoftwareEvent(DataStream):
@@ -204,30 +229,30 @@ class SoftwareEvent(DataStream):
             )
 
     def _load_single_event(self, value: str) -> None:
-        self.data = json.loads(value)
-        return self.data
+        self._data = json.loads(value)
+        return self._data
 
     def load_from_file(self,
                        path: Optional[str | Path] = None,
                        force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
-        force_reload = True if self.data is None else force_reload
+        force_reload = True if self._data is None else force_reload
         if force_reload:
             if path is None:
-                path = self.path
+                path = self._path
             with open(path, "r") as f:
-                self.data = pd.DataFrame(
+                self._data = pd.DataFrame(
                     [self._load_single_event(value=event) for event in f.readlines()]
                     )
-                self.data.rename(columns={"timestamp": "Seconds"}, inplace=True)
-                self.data.set_index("Seconds", inplace=True)
+                self._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
+                self._data.set_index("Seconds", inplace=True)
 
     def json_normalize(self, *args, **kwargs):
-        if self.data is None:
+        if self._data is None:
             self.load_from_file()
         df = pd.concat(
-            [self.data,
-            pd.json_normalize(self.data["data"]).set_index(self.data.index)],
+            [self._data,
+            pd.json_normalize(self._data["data"]).set_index(self._data.index)],
             axis=1
             )
         return df
@@ -236,9 +261,9 @@ class SoftwareEvent(DataStream):
     def parse(self, value: str, **kwargs) -> pd.DataFrame:
         """Loads the datastream from a value"""
         ds = SoftwareEvent(**kwargs)
-        ds.data = pd.DataFrame(
+        ds._data = pd.DataFrame(
             [SoftwareEvent._load_single_event(value=line) for line in value.split("\n")]
             )
-        ds.data.rename(columns={"timestamp": "Seconds"}, inplace=True)
-        ds.data.set_index("Seconds", inplace=True)
+        ds._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
+        ds._data.set_index("Seconds", inplace=True)
         return ds
