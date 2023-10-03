@@ -155,6 +155,10 @@ class DataStream:
              ) -> any:
         if populate is True:
             self.load_from_file(force_reload=force_reload)
+        if self._data is None:
+            raise ValueError("Data is not loaded. \
+                             Try self.data(populate=True) to attempt\
+                             to automatically load it")
         return self._data
 
     @property
@@ -187,7 +191,7 @@ class DataStream:
             else:
                 raise NotImplementedError(
                     "A valid .load_from_file() method must be implemented,\
-                        or a file_reader function must be provided")
+                        or a reader function must be provided")
 
     @classmethod
     def parse(self, value: any, **kwargs):
@@ -199,7 +203,7 @@ class DataStream:
         else:
             raise NotImplementedError(
                 "A valid .parse() method must be implemented,\
-                    or a reader function must be provided")
+                    or a parse function must be provided")
 
     def __str__(self) -> str:
         return f"{self._dataType} stream with {len(self._data)} entries"
@@ -240,6 +244,14 @@ class HarpStream(DataStream):
                 path = self._path
             self._data = self.device.file_to_dataframe(path)
 
+    def unpack_enum_flag(self,
+                         flag_class: object,
+                         exclude_default_flag: bool = True) -> pd.DataFrame:
+        return harp.HarpDevice.unpack_enum_flag(
+            self.data,
+            flag_class=flag_class,
+            exclude_default_flag=exclude_default_flag)
+
 
 class SoftwareEvent(DataStream):
     """Represents a generic Software event."""
@@ -253,8 +265,7 @@ class SoftwareEvent(DataStream):
             )
 
     def _load_single_event(self, value: str) -> None:
-        self._data = json.loads(value)
-        return self._data
+        return json.loads(value)
 
     def load_from_file(self,
                        path: Optional[str | Path] = None,
@@ -272,13 +283,10 @@ class SoftwareEvent(DataStream):
                 self._data.set_index("Seconds", inplace=True)
 
     def json_normalize(self, *args, **kwargs):
-        if self._data is None:
-            self.load_from_file()
-        df = pd.concat(
-            [self._data,
-            pd.json_normalize(self._data["data"]).set_index(self._data.index)],
-            axis=1
-            )
+        df = pd.concat([
+            self.data,
+            pd.json_normalize(self._data["data"], args, kwargs).set_index(self.data.index)
+            ], axis=1)
         return df
 
     @classmethod
