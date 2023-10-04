@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import clr
+from typing import Optional
 
 _SECONDS_PER_TICK = 32e-6
 _payloadtypes = {
@@ -118,8 +119,11 @@ class HarpInterface:
 
     @staticmethod
     def unpack_enum_flag(df: pd.DataFrame,
-                         flag_class: object,
+                         flag_class: Optional[object] = None,
                          exclude_default_flag: bool = True) -> pd.DataFrame:
+
+        if flag_class is None:
+            flag_class = df["Value"].iloc[0].GetType()
         if exclude_default_flag:
             flags = [val.ToString() for val in System.Enum.GetValues(flag_class) if int(val) > 0]
         else:
