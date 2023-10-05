@@ -1,6 +1,6 @@
 from scipy.signal import lfilter, firwin
 
-def FIRfilter(data, cutoff_hz, numtaps=61, nyq_rate=1000/2.):
+def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000/2.):
 
     '''  
     Create a FIR filter and apply it to signal.
@@ -11,7 +11,7 @@ def FIRfilter(data, cutoff_hz, numtaps=61, nyq_rate=1000/2.):
     '''
     
     # Use firwin to create a lowpass FIR filter
-    fir_coeff = firwin(numtaps, cutoff_hz/nyq_rate)
+    fir_coeff = firwin(num_taps, cutoff_hz/nyq_rate)
 
     # Use lfilter to filter the signal with the FIR filter
     data["filtered_velocity"] = lfilter(fir_coeff, 1.0, data["velocity"].values)
