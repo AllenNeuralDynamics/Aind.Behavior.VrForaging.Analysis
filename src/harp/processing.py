@@ -54,7 +54,7 @@ def find_closest(query: ArrayLike,
     elif mode == "below_zero":
         d[d > 0] = np.inf
     arg_min = np.argmin(np.abs(d))
-    if np.abs(d[arg_min]) > tolerance:
+    if np.abs(d[arg_min]) >= tolerance:
         return (np.nan, np.nan)
     else:
         return (arg_min, array[arg_min])
