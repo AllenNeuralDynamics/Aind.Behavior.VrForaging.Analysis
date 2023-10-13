@@ -9,6 +9,20 @@ import harp
 
 
 # Data stream sources
+class Streams(DotMap):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, _dynamic=False)
+
+    def list_streams(self) -> List[str]:
+        return list(self.keys())
+
+    def __str__(self):
+        single_streams = [f"{key}: {value}" for key, value in self.items()]
+        return f"Streams with {len(self)} streams: \n" + "\n".join(single_streams)
+
+    def __repr__(self):
+        return super().__repr__()
+
 
 class DataStreamSource:
     """Represents a datastream source, usually comprised of various files from a single folder.
@@ -45,13 +59,13 @@ class DataStreamSource:
     def files(self) -> List[Path]:
         return self._files
 
-    def populate_streams(self, autoload) -> DotMap:
+    def populate_streams(self, autoload) -> Streams:
         """Populates the streams attribute with a list of DataStream objects"""
         streams = [DataStream(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
     def __str__(self) -> str:
         return f"DataStreamSource from {self._path}"
@@ -67,12 +81,12 @@ class SoftwareEventSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> DotMap:
+    def populate_streams(self, autoload: bool) -> Streams:
         streams = [SoftwareEvent(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
 
 class HarpSource(DataStreamSource):
@@ -96,7 +110,7 @@ class HarpSource(DataStreamSource):
     def device(self) -> harp.HarpDevice:
         return self._device
 
-    def populate_streams(self, autoload: bool) -> DotMap:
+    def populate_streams(self, autoload: bool) -> Streams:
         if self.remove_suffix:
             streams = [HarpStream(
                 self.device,
@@ -108,7 +122,7 @@ class HarpSource(DataStreamSource):
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
 
 class ConfigSource(DataStreamSource):
@@ -118,12 +132,12 @@ class ConfigSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> DotMap:
+    def populate_streams(self, autoload: bool) -> Streams:
         streams = [Config(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
 
 class OperationControlSource(DataStreamSource):
@@ -134,7 +148,7 @@ class OperationControlSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> DotMap:
+    def populate_streams(self, autoload: bool) -> Streams:
         streams: List[DataStream] = []
         for file in self.files:
             streams.append(
@@ -145,7 +159,7 @@ class OperationControlSource(DataStreamSource):
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
     @staticmethod
     def _loader(path: Path | str):
