@@ -6,10 +6,9 @@ from pathlib import Path
 from dotmap import DotMap
 from enum import Enum
 import harp
-from functools import partial
+
 
 # Data stream sources
-
 
 class DataStreamSource:
     """Represents a datastream source, usually comprised of various files from a single folder.
