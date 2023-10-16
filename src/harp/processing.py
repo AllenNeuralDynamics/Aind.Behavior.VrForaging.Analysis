@@ -31,7 +31,7 @@ def distinct_until_changed_state(onset_event: pd.DataFrame,
 find_closest_modes = Literal["closest", "above_zero", "below_zero"]
 
 
-def find_closest(query: ArrayLike,
+def find_closest(query: float,
                  array: ArrayLike,
                  mode: find_closest_modes = "closest",
                  tolerance: float = np.inf
@@ -54,7 +54,7 @@ def find_closest(query: ArrayLike,
     elif mode == "below_zero":
         d[d > 0] = np.inf
     arg_min = np.argmin(np.abs(d))
-    if np.abs(d[arg_min]) > tolerance:
+    if np.abs(d[arg_min]) >= tolerance:
         return (np.nan, np.nan)
     else:
         return (arg_min, array[arg_min])
