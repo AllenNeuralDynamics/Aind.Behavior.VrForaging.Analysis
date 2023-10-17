@@ -1,12 +1,27 @@
 import pandas as pd
 import json
-from dataclasses import dataclass
-from typing import Optional, Callable, List
+import csv
+from typing import Optional, Callable, List, Dict
 from pathlib import Path
 from dotmap import DotMap
 from enum import Enum
 import harp
+
+
 # Data stream sources
+class Streams(DotMap):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, _dynamic=False)
+
+    def list_streams(self) -> List[str]:
+        return list(self.keys())
+
+    def __str__(self):
+        single_streams = [f"{key}: {value}" for key, value in self.items()]
+        return f"Streams with {len(self)} streams: \n" + "\n".join(single_streams)
+
+    def __repr__(self):
+        return super().__repr__()
 
 
 class DataStreamSource:
@@ -44,13 +59,13 @@ class DataStreamSource:
     def files(self) -> List[Path]:
         return self._files
 
-    def populate_streams(self, autoload) -> DotMap:
+    def populate_streams(self, autoload) -> Streams:
         """Populates the streams attribute with a list of DataStream objects"""
         streams = [DataStream(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
     def __str__(self) -> str:
         return f"DataStreamSource from {self._path}"
@@ -66,12 +81,12 @@ class SoftwareEventSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> DotMap:
+    def populate_streams(self, autoload: bool) -> Streams:
         streams = [SoftwareEvent(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
 
 class HarpSource(DataStreamSource):
@@ -95,7 +110,7 @@ class HarpSource(DataStreamSource):
     def device(self) -> harp.HarpDevice:
         return self._device
 
-    def populate_streams(self, autoload: bool) -> DotMap:
+    def populate_streams(self, autoload: bool) -> Streams:
         if self.remove_suffix:
             streams = [HarpStream(
                 self.device,
@@ -107,8 +122,55 @@ class HarpSource(DataStreamSource):
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
-        self.streams = DotMap({stream.name: stream for stream in streams})
+        self.streams = Streams({stream.name: stream for stream in streams})
 
+
+class ConfigSource(DataStreamSource):
+    def __init__(self, path: str | Path,
+                 name: str | None = None,
+                 file_pattern_matching: str = "*.json",
+                 autoload=True) -> None:
+        super().__init__(path, name, file_pattern_matching, autoload=autoload)
+
+    def populate_streams(self, autoload: bool) -> Streams:
+        streams = [Config(file) for file in self.files]
+        if autoload is True:
+            for stream in streams:
+                stream.load_from_file()
+        self.streams = Streams({stream.name: stream for stream in streams})
+
+
+class OperationControlSource(DataStreamSource):
+    def __init__(self,
+                 path: str | Path,
+                 name: str | None = None,
+                 file_pattern_matching: str = "*.csv",
+                 autoload=True) -> None:
+        super().__init__(path, name, file_pattern_matching, autoload=autoload)
+
+    def populate_streams(self, autoload: bool) -> Streams:
+        streams: List[DataStream] = []
+        for file in self.files:
+            streams.append(
+                DataStream(path=file,
+                           data_type=DataStreamType.CSV,
+                           reader=self._loader))
+
+        if autoload is True:
+            for stream in streams:
+                stream.load_from_file()
+        self.streams = Streams({stream.name: stream for stream in streams})
+
+    @staticmethod
+    def _loader(path: Path | str):
+        with open(path) as csvfile:
+            has_header = csv.Sniffer().has_header(csvfile.read(20_480))
+        if has_header:
+            df = pd.read_csv(path, header=0, index_col=0)
+        else:
+            df = pd.read_csv(path, header=None, index_col=0)
+        df.index.names = ["Seconds"]
+        return df
 
 ## Data stream types
 
@@ -149,12 +211,7 @@ class DataStream:
         self._data = None
 
     @property
-    def data(self,
-             populate: bool = False,
-             force_reload: bool = False,
-             ) -> any:
-        if populate is True:
-            self.load_from_file(force_reload=force_reload)
+    def data(self) -> any:
         if self._data is None:
             raise ValueError("Data is not loaded. \
                              Try self.data(populate=True) to attempt\
@@ -206,11 +263,16 @@ class DataStream:
                     or a parse function must be provided")
 
     def __str__(self) -> str:
-        return f"{self._dataType} stream with {len(self._data)} entries"
+        if self._data is not None:
+            return f"{self._dataType} stream with {len(self._data)} entries"
+        else:
+            return f"{self._dataType} stream with None/Not loaded entries"
 
     def __repr__(self) -> str:
-        return f"{self._dataType} stream with {len(self._data)} entries"
-
+        if self._data is not None:
+            return f"{self._dataType} stream with {len(self._data)} entries"
+        else:
+            return f"{self._dataType} stream with None/Not loaded entries"
 
 class HarpStream(DataStream):
     def __init__(self,
@@ -299,3 +361,34 @@ class SoftwareEvent(DataStream):
         ds._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
         ds._data.set_index("Seconds", inplace=True)
         return ds
+
+
+class Config(DataStream):
+    """Represents a generic Software event."""
+
+    def __init__(self, path: Optional[str | Path] = None, **kwargs):
+        super().__init__(
+            path=path, **kwargs,
+            data_type=DataStreamType.JSON,
+            reader=None,
+            parser=None,
+            )
+
+    def load_from_file(self,
+                       path: Optional[str | Path] = None,
+                       force_reload: bool = False) -> None:
+        """Loads the datastream from a file"""
+        force_reload = True if self._data is None else force_reload
+        if force_reload:
+            if path is None:
+                path = self._path
+            with open(path, "r") as f:
+                self._data = json.load(f)
+
+    @classmethod
+    def parse(self, value: str, **kwargs) -> Dict:
+        """Loads the datastream from a value"""
+        ds = Config(**kwargs)
+        ds._data = json.load(value)
+        return ds
+
