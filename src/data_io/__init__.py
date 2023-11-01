@@ -163,13 +163,22 @@ class OperationControlSource(DataStreamSource):
 
     @staticmethod
     def _loader(path: Path | str):
+        _exists = False
         with open(path) as csvfile:
-            has_header = csv.Sniffer().has_header(csvfile.read(20_480))
+            try:
+                has_header = csv.Sniffer().has_header(csvfile.read(20_480))
+                _exists = True
+            except csv.Error:
+                Warning(f"Could not determine if {path} has a header")
+                has_header = False
+        if _exists is False:
+            df = pd.DataFrame()
+            df.index.names = ["Seconds"]
+            return df
         if has_header:
             df = pd.read_csv(path, header=0, index_col=0)
         else:
             df = pd.read_csv(path, header=None, index_col=0)
-        df.index.names = ["Seconds"]
         return df
 
 ## Data stream types
