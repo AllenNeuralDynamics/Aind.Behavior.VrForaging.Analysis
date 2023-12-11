@@ -3,10 +3,10 @@ import json
 import csv
 from typing import Optional, Callable, List, Dict
 from pathlib import Path
+from typing import PathLike
 from dotmap import DotMap
 from enum import Enum
 import harp
-
 
 # Data stream sources
 class Streams(DotMap):
@@ -28,7 +28,7 @@ class DataStreamSource:
     """Represents a datastream source, usually comprised of various files from a single folder.
     These folders usually result from a single data acquisition logger"""
     def __init__(self,
-                 path: str | Path,
+                 path: str | PathLike,
                  name: Optional[str] = None,
                  file_pattern_matching: str = "*",
                  autoload=True,
@@ -75,7 +75,7 @@ class DataStreamSource:
 
 
 class SoftwareEventSource(DataStreamSource):
-    def __init__(self, path: str | Path,
+    def __init__(self, path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*.json",
                  autoload=True) -> None:
@@ -91,7 +91,7 @@ class SoftwareEventSource(DataStreamSource):
 
 class HarpSource(DataStreamSource):
     def __init__(self, device: harp.HarpDevice | str,
-                 path: str | Path,
+                 path: str | PathLikeLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*",
                  autoload=False,
@@ -126,7 +126,7 @@ class HarpSource(DataStreamSource):
 
 
 class ConfigSource(DataStreamSource):
-    def __init__(self, path: str | Path,
+    def __init__(self, path: str | PathLikeLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*.json",
                  autoload=True) -> None:
@@ -142,7 +142,7 @@ class ConfigSource(DataStreamSource):
 
 class OperationControlSource(DataStreamSource):
     def __init__(self,
-                 path: str | Path,
+                 path: str | PathLikeLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*.csv",
                  autoload=True) -> None:
@@ -198,7 +198,7 @@ class DataStreamType(Enum):
 class DataStream:
     """Represents a single datastream file"""
     def __init__(self,
-                 path: Optional[str | Path] = None,
+                 path: Optional[str | PathLike] = None,
                  name: Optional[str] = None,
                  data_type: DataStreamType = DataStreamType.NULL,
                  reader: Optional[Callable] = None,
@@ -327,7 +327,7 @@ class HarpStream(DataStream):
 class SoftwareEvent(DataStream):
     """Represents a generic Software event."""
 
-    def __init__(self, path: Optional[str | Path] = None, **kwargs):
+    def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
             path=path, **kwargs,
             data_type=DataStreamType.SOFTWARE_EVENT,
@@ -339,7 +339,7 @@ class SoftwareEvent(DataStream):
         return json.loads(value)
 
     def load_from_file(self,
-                       path: Optional[str | Path] = None,
+                       path: Optional[str | PathLike] = None,
                        force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
@@ -375,7 +375,7 @@ class SoftwareEvent(DataStream):
 class Config(DataStream):
     """Represents a generic Software event."""
 
-    def __init__(self, path: Optional[str | Path] = None, **kwargs):
+    def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
             path=path, **kwargs,
             data_type=DataStreamType.JSON,
@@ -384,7 +384,7 @@ class Config(DataStream):
             )
 
     def load_from_file(self,
-                       path: Optional[str | Path] = None,
+                       path: Optional[str | PathLike] = None,
                        force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
