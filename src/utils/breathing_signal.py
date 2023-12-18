@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 """
 Created on Fri Jun 23 10:39:15 2023
 
@@ -15,13 +15,44 @@ from scipy import signal
 from sklearn.preprocessing import MinMaxScaler
 
 def moving_average(data, window_size):
+    '''
+    Create a moving average of the data
+    
+    Parameters
+    ----------
+    data : pd.DataFrame
+        dataframe that contains the signal data.
+    window_size : int
+        size of the window to apply the moving average.
+        
+    Returns
+    -------
+    smoothed_data : pd.DataFrame
+        dataframe with the smoothed data.
+    '''
+    
     window = np.ones(int(window_size)) / float(window_size)
     smoothed_data = np.convolve(data, window, 'same')
     return smoothed_data
 
-
 def apply_filter(data, f_notch = 60, Q= 200):
-    # Design a notch filter to remove 60 Hz noise
+    '''
+    Apply a notch filter to remove 60 Hz noise
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        dataframe that contains the signal data.
+    f_notch : int, optional
+        frequency to apply the notch filter. The default is 60.
+    Q : int, optional
+        Q factor. The default is 200.
+        
+    Returns
+    -------
+    data : pd.DataFrame
+        dataframe with the filtered data.
+    '''
     # Generate sample signal
     sampling_rate = 1000  # Sample rate (Hz)
     b, a = signal.iirnotch(f_notch, Q, sampling_rate)
@@ -43,19 +74,19 @@ def findpeaks_and_plot(data, x, fig, range_plot = [120,121], color='black', heig
     fig : figure
         where things will be plotted.
     range_plot : list, optional
-        DESCRIPTION. The default is [120,121].indicates the range that wants to be displayed
+        The default is [120,121].indicates the range that wants to be displayed
     color : TYPE, optional
-        DESCRIPTION. The default is 'black'.
+        The default is 'black'.
     label:  TYPE, optional
-        DESCRIPTION.
+        The default is 'Pressure sensor'.
         
     The following are parameters related with finding the peaks
         heigth : TYPE, optional
-            DESCRIPTION. The default is 1.1.
+            The default is 1.1.
         prominence : TYPE, optional
-            DESCRIPTION. The default is 2.5.
+            The default is 2.5.
         distance : TYPE, optional
-            DESCRIPTION. The default is 30.
+            The default is 30.
             
 
     Returns
