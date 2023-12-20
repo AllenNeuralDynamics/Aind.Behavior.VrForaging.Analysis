@@ -317,7 +317,7 @@ class HarpStream(DataStream):
                 path = self._path
             # load raw file as a binary
             reg_addr = self._get_address_from_bin(path)
-            self._data = self.device[reg_addr].read(path, keep_type=True)
+            self._data = self.device.registers[reg_addr].read(path, keep_type=True)
 
     @staticmethod
     def _get_address_from_bin(path: PathLike) -> int:
