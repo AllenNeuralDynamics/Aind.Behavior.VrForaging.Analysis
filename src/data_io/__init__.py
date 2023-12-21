@@ -1,11 +1,15 @@
-import pandas as pd
+
 import json
 import csv
-from typing import Optional, Callable, List, Dict
+from typing import Optional, Callable, List, Dict, Unpack
+from os import PathLike
+from enum import Enum
+
 from pathlib import Path
 from dotmap import DotMap
-from enum import Enum
-import harp
+import pandas as pd
+
+from harp.reader import DeviceReader, create_reader
 
 
 # Data stream sources
@@ -28,7 +32,7 @@ class DataStreamSource:
     """Represents a datastream source, usually comprised of various files from a single folder.
     These folders usually result from a single data acquisition logger"""
     def __init__(self,
-                 path: str | Path,
+                 path: str | PathLike,
                  name: Optional[str] = None,
                  file_pattern_matching: str = "*",
                  autoload=True,
@@ -75,7 +79,7 @@ class DataStreamSource:
 
 
 class SoftwareEventSource(DataStreamSource):
-    def __init__(self, path: str | Path,
+    def __init__(self, path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*.json",
                  autoload=True) -> None:
@@ -90,16 +94,16 @@ class SoftwareEventSource(DataStreamSource):
 
 
 class HarpSource(DataStreamSource):
-    def __init__(self, device: harp.HarpDevice | str,
-                 path: str | Path,
+    def __init__(self, device: DeviceReader | Unpack[create_reader],
+                 path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*",
                  autoload=False,
                  remove_suffix: Optional[str] = "Register__") -> None:
-        if isinstance(device, str):
-            device = harp.HarpDevice(device)
+        if isinstance(device, Dict):
+            device = create_reader(**device)
             self._device = device
-        elif isinstance(device, harp.HarpDevice):
+        elif isinstance(device, DeviceReader):
             self._device = device
         else:
             raise ValueError("device must be a HarpDevice or a string")
@@ -107,7 +111,7 @@ class HarpSource(DataStreamSource):
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
     @property
-    def device(self) -> harp.HarpDevice:
+    def device(self) -> DeviceReader:
         return self._device
 
     def populate_streams(self, autoload: bool) -> Streams:
@@ -126,7 +130,7 @@ class HarpSource(DataStreamSource):
 
 
 class ConfigSource(DataStreamSource):
-    def __init__(self, path: str | Path,
+    def __init__(self, path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*.json",
                  autoload=True) -> None:
@@ -142,7 +146,7 @@ class ConfigSource(DataStreamSource):
 
 class OperationControlSource(DataStreamSource):
     def __init__(self,
-                 path: str | Path,
+                 path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*.csv",
                  autoload=True) -> None:
@@ -163,13 +167,22 @@ class OperationControlSource(DataStreamSource):
 
     @staticmethod
     def _loader(path: Path | str):
+        _exists = False
         with open(path) as csvfile:
-            has_header = csv.Sniffer().has_header(csvfile.read(20_480))
+            try:
+                has_header = csv.Sniffer().has_header(csvfile.read(20_480))
+                _exists = True
+            except csv.Error:
+                Warning(f"Could not determine if {path} has a header")
+                has_header = False
+        if _exists is False:
+            df = pd.DataFrame()
+            df.index.names = ["Seconds"]
+            return df
         if has_header:
             df = pd.read_csv(path, header=0, index_col=0)
         else:
             df = pd.read_csv(path, header=None, index_col=0)
-        df.index.names = ["Seconds"]
         return df
 
 ## Data stream types
@@ -189,7 +202,7 @@ class DataStreamType(Enum):
 class DataStream:
     """Represents a single datastream file"""
     def __init__(self,
-                 path: Optional[str | Path] = None,
+                 path: Optional[str | PathLike] = None,
                  name: Optional[str] = None,
                  data_type: DataStreamType = DataStreamType.NULL,
                  reader: Optional[Callable] = None,
@@ -274,17 +287,15 @@ class DataStream:
         else:
             return f"{self._dataType} stream with None/Not loaded entries"
 
+
 class HarpStream(DataStream):
     def __init__(self,
-                 device: harp.HarpDevice | str,
+                 device: DeviceReader,
                  path: Optional[Path] = None, **kwargs):
-        if isinstance(device, str):
-            device = harp.HarpDevice(device)
-            self._device = device
-        elif isinstance(device, harp.HarpDevice):
+        if isinstance(device, DeviceReader):
             self._device = device
         else:
-            raise ValueError("device must be a HarpDevice or a string")
+            raise ValueError("device must be a DeviceReader")
         super().__init__(
             path=path, **kwargs,
             data_type=DataStreamType.HARP,
@@ -293,7 +304,7 @@ class HarpStream(DataStream):
             )
 
     @property
-    def device(self) -> harp.HarpDevice:
+    def device(self) -> DeviceReader:
         return self._device
 
     def load_from_file(self,
@@ -304,21 +315,22 @@ class HarpStream(DataStream):
         if force_reload:
             if path is None:
                 path = self._path
-            self._data = self.device.file_to_dataframe(path)
+            # load raw file as a binary
+            reg_addr = self._get_address_from_bin(path)
+            self._data = self.device.registers[reg_addr].read(path, keep_type=True)
 
-    def unpack_enum_flag(self,
-                         flag_class: object,
-                         exclude_default_flag: bool = True) -> pd.DataFrame:
-        return harp.HarpDevice.unpack_enum_flag(
-            self.data,
-            flag_class=flag_class,
-            exclude_default_flag=exclude_default_flag)
+    @staticmethod
+    def _get_address_from_bin(path: PathLike) -> int:
+        with open(path, "rb") as file:
+            file.seek(2)
+            address = file.read(1)[0]
+        return address
 
 
 class SoftwareEvent(DataStream):
     """Represents a generic Software event."""
 
-    def __init__(self, path: Optional[str | Path] = None, **kwargs):
+    def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
             path=path, **kwargs,
             data_type=DataStreamType.SOFTWARE_EVENT,
@@ -330,7 +342,7 @@ class SoftwareEvent(DataStream):
         return json.loads(value)
 
     def load_from_file(self,
-                       path: Optional[str | Path] = None,
+                       path: Optional[str | PathLike] = None,
                        force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
@@ -366,7 +378,7 @@ class SoftwareEvent(DataStream):
 class Config(DataStream):
     """Represents a generic Software event."""
 
-    def __init__(self, path: Optional[str | Path] = None, **kwargs):
+    def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
             path=path, **kwargs,
             data_type=DataStreamType.JSON,
@@ -375,7 +387,7 @@ class Config(DataStream):
             )
 
     def load_from_file(self,
-                       path: Optional[str | Path] = None,
+                       path: Optional[str | PathLike] = None,
                        force_reload: bool = False) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
