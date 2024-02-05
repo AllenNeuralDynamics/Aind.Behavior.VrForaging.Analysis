@@ -2,37 +2,23 @@
 import sys
 sys.path.append('../src/')
 
-import os
-from typing import Dict
-from os import PathLike
-from pathlib import Path
-
-import data_io
-
-from harp.reader import create_reader
-
 from utils import breathing_signal as lib
 from utils import analysis_utils as analysis
 from utils import processing
 
 # Plotting libraries
+import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.backends.backend_pdf import PdfPages
-from tkinter import font
 from matplotlib.gridspec import GridSpec
-
 from matplotlib.ticker import FuncFormatter, MaxNLocator, FixedLocator
-import seaborn as sns
+
+# Data processing toold
 import pandas as pd
 import numpy as np
-import json 
 
 def format_func(value, tick_number):
     return f"{value:.0f}"
-
-from numpy.typing import ArrayLike
-from typing import Literal, Tuple
 
 sns.set_context('talk')
 
