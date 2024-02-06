@@ -27,7 +27,59 @@ pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
 
-def SessionRasterSegmented(reward_sites,config, save=False):
+def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mouse: str, session: str, aligned: str=None, window: tuple=(-0.5, 2)):
+    '''
+    Crop the snippets of speed traces that are aligned to different epochs
+    
+    Parameters
+    ----------
+    reward_sites : pd.DataFrame
+        DataFrame containing the reward sites information
+    encoder_data : pd.DataFrame
+        DataFrame containing the encoder data
+    mouse : str
+        Mouse name
+    session : str
+        Session name
+    aligned : str
+        Column name to align the snippets
+    window : tuple
+        Time window to crop the snippets
+        
+    Returns
+    -------
+    trial_summary : pd.DataFrame
+        DataFrame containing the snippets of speed traces aligned to different epochs
+        
+        '''
+    trial_summary = pd.DataFrame()
+        
+    for start_reward, row in reward_sites.iterrows():
+        trial_average = pd.DataFrame()
+        if aligned is not None:
+            trial = encoder_data.loc[row[aligned] + window[0]: row[aligned] + window[1], 'filtered_velocity']
+        else:
+            trial = encoder_data.loc[start_reward + window[0]: start_reward + window[1], 'filtered_velocity']
+        trial.index -=  start_reward
+        trial_average['speed'] = trial.values
+        trial_average['times'] = np.around(trial.index,3)
+        trial_average['odor_label'] = np.repeat(row['odor_label'], len(trial.values))
+        trial_average['collected'] = np.repeat(row['collected'], len(trial.values))
+        trial_average['depleted'] = np.repeat(row['depleted'], len(trial.values))
+        trial_average['reward_available'] = np.repeat(row['reward_available'], len(trial.values))
+        trial_average['total_sites'] = np.repeat(row['total_sites'], len(trial.values))
+        trial_average['has_choice'] = np.repeat(row['has_choice'], len(trial.values))
+        trial_average['reward_available'] = np.repeat(row['reward_available'], len(trial.values))
+        trial_average['visit_number'] = np.repeat(row['visit_number'], len(trial.values))
+        trial_average['last_visit'] = np.repeat(row['last_visit'], len(trial.values))
+        trial_average['amount'] = np.repeat(row['amount'], len(trial.values))
+
+        trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
+    trial_summary['mouse'] = mouse
+    trial_summary['session'] = session
+    return trial_summary
+
+def session_raster_segmented(reward_sites,config, save=False):
     # Create a figure with a 2x2 grid
     fig = plt.figure(figsize=(12, 16))
     gs = GridSpec(3, 2, width_ratios=[1, 1])
@@ -75,7 +127,6 @@ def SessionRasterSegmented(reward_sites,config, save=False):
     odors.extend([label_2, label_3,label_4,label_5,label_6])
     ax1.legend(handles=odors, loc='upper left', bbox_to_anchor=(0.8, 1), fontsize=8)
     ax1.set_ylim(-1,max(reward_sites.active_patch)+1)
-    ax1.set_title(mouse + '_' + session)
     plt.tight_layout()
     sns.despine()
 
@@ -126,7 +177,7 @@ def SessionRasterSegmented(reward_sites,config, save=False):
         save.savefig(fig, bbox_inches='tight')
         plt.close(fig)
 
-def PStayPastNoRewards(reward_sites, config, save=False):
+def pstay_past_no_rewards(reward_sites, config, save=False):
     odor_label_list = reward_sites['odor_label'].unique()
     fig, ax1 = plt.subplots(1, len(odor_label_list), figsize=(4*len(odor_label_list),4))        
     for i, odor_label in enumerate(odor_label_list):
@@ -163,7 +214,7 @@ def PStayPastNoRewards(reward_sites, config, save=False):
         save.savefig(fig)
         plt.close(fig)
 
-def PStayVisitNumber(reward_sites, config, save=False):
+def pstay_visit_number(reward_sites, config, save=False):
     odor_label_list = reward_sites['odor_label'].unique()
     fig, ax1 = plt.subplots(1, len(odor_label_list), figsize=(4*len(odor_label_list),4))        
     for i, odor_label in enumerate(odor_label_list):
