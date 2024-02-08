@@ -1,7 +1,363 @@
 from scipy.signal import lfilter, firwin
+import sys
+sys.path.append('../src/')
+
+import os
+from typing import Dict
+from os import PathLike
+from pathlib import Path
+
+import data_io
+
+from harp.reader import create_reader
+
+from utils import analysis_utils as analysis
+from utils import processing
+
+import seaborn as sns
 import pandas as pd
+import numpy as np
+import json 
 
 
+
+def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStreamSource]:
+    _out_dict = {}
+    session_path = Path(session_path)
+    # HarpBehavior = create_reader(device = r"C:\git\harp-tech\device.behavior\device.yml")
+    # HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
+    # HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")
+
+    HarpBehavior = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\device.behavior\device.yml")
+    HarpOlfactometer = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\device.olfactometer\device.yml")
+    HarpLickometer = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
+
+    if 'Behavior.harp' in os.listdir(session_path):
+        _out_dict["harp_behavior"] = data_io.HarpSource(
+            device=HarpBehavior,
+            path= session_path / "Behavior.harp",
+            name="behavior",
+            autoload=False)
+    else:
+        behavior = 0
+        print('Old behavior loading')
+        _out_dict["harp_behavior"] = data_io.HarpSource(
+            device=HarpBehavior,
+            path= session_path / "Behavior",
+            name="behavior",
+            autoload=False)    
+        
+    if 'Olfactometer.harp' in os.listdir(session_path):
+        _out_dict["harp_olfactometer"] = data_io.HarpSource(
+            device=HarpOlfactometer, 
+            path=session_path / "Olfactometer.harp", 
+            name="olfactometer", 
+            autoload=False)
+        
+    if 'Lickometer.harp' in os.listdir(session_path):
+        _out_dict["harp_lickometer"] = data_io.HarpSource(
+            device=HarpLickometer, 
+            path=session_path / "Lickometer.harp", 
+            name="lickometer", 
+            autoload=False)
+        
+    _out_dict["software_events"] = data_io.SoftwareEventSource(
+        path=session_path / "SoftwareEvents",
+        name="software_events",
+        autoload=False)
+
+    # Load config old version
+    if 'config.json' in os.listdir(session_path):
+        with open(str(session_path)+'\config.json', 'r') as json_file:
+            config = json.load(json_file)
+            
+    # Load new configuration
+    else:
+        _out_dict["config"] = data_io.ConfigSource(
+            path=session_path / "Config",
+            name="config",
+            autoload=False)
+    
+    if 'OperationControl.harp' in os.listdir(session_path):
+        _out_dict["operation_control"] = data_io.OperationControlSource(
+            path=session_path / "OperationControl.harp",
+            name="operation_control",
+            autoload=False)
+    else:
+        pass
+    return _out_dict
+
+def odor_data_harp_olfactometer(data, reward_sites):
+
+        #### --------------------------------------------------------- Odor onsets and offsets-------------------------------------------------- ####
+    # Assign odor labels to odor indexes
+    odor0=False
+    odor1=False
+    odor2=False
+    if 'environment_statistics' in data['config'].streams['TaskLogic'].data:
+        environment = 'environment_statistics'
+        odor_specifications = 'odor_specification'
+        odor_index = 'index'
+    else:
+        environment = 'environmentStatistics'
+        odor_specifications = 'odorSpecifications'
+        odor_index = 'odorIndex'
+        
+    for patches in data['config'].streams['TaskLogic'].data[environment]['patches']: 
+        if patches[odor_specifications][odor_index] == 0:
+            odor0 = patches['label']
+        elif patches[odor_specifications][odor_index] == 1:
+            odor1 = patches['label']
+        else:
+            odor2 = patches['label']
+
+    # Selecting which odor valve is open before the end valves are opened
+    OdorValveState = pd.DataFrame()
+    OdorValveState['time'] = data['harp_olfactometer'].streams.OdorValveState.data.index.values
+    data['harp_olfactometer'].streams.OdorValveState.data['Valve0'] = np.where(data['harp_olfactometer'].streams.OdorValveState.data['Valve0'] == True, odor0, data['harp_olfactometer'].streams.OdorValveState.data['Valve0'])
+    data['harp_olfactometer'].streams.OdorValveState.data['Valve1'] = np.where(data['harp_olfactometer'].streams.OdorValveState.data['Valve1'] == True, odor1, data['harp_olfactometer'].streams.OdorValveState.data['Valve1'])
+    data['harp_olfactometer'].streams.OdorValveState.data['Valve2'] = np.where(data['harp_olfactometer'].streams.OdorValveState.data['Valve2'] == True, odor2, data['harp_olfactometer'].streams.OdorValveState.data['Valve2'])
+
+    # Create a new dataframe to store the results
+    OdorValveState = pd.DataFrame(columns=['time', 'condition'])
+
+    # Loop through each row and find the values that are not False
+    for index, row in data['harp_olfactometer'].streams.OdorValveState.data[['Valve0', 'Valve1', 'Valve2']].iterrows():
+        non_false_values = row[row != 'False'].tolist()
+        if non_false_values:  # Check if there are any non-False values
+            OdorValveState = pd.concat([OdorValveState, pd.DataFrame([[index, non_false_values[0]]], columns=['time', 'condition'])])
+            
+    EndValveState = pd.DataFrame()
+    EndValveState['time'] = data['harp_olfactometer'].streams.EndValveState.data.index.values
+    EndValveState['condition'] = np.where(data['harp_olfactometer'].streams.EndValveState.data['EndValve0'] == True, 'EndValveOn', 'EndValveOff')
+
+    odor_updates = pd.concat([EndValveState[['time', 'condition']], OdorValveState[['time', 'condition']]])
+    odor_updates = odor_updates.sort_values(by='time')
+    odor_updates = odor_updates[odor_updates['condition'] != False]
+
+    odor_triggers = pd.DataFrame(columns=['odor_onset', 'odor_offset', 'condition'])
+    onset = np.nan
+    offset = np.nan
+    first = True
+    for i, row in odor_updates.iterrows():
+        if row['condition'] == 'EndValveOn':
+            onset = row['time']
+            
+        elif row['condition'] == 'EndValveOff':
+            offset = row['time']
+                
+        elif (row['condition'] != 'EndValveOn') or (row['condition'] != 'EndValveOff'):
+            if first:
+                condition = row['condition']
+                first = False
+                continue
+            else:
+                new_row = {'odor_onset': onset, 'odor_offset': offset, 'condition': condition}
+                odor_triggers.loc[len(odor_triggers)] = new_row
+                condition = row['condition']
+
+    if row['condition'] == 'EndValveOn':
+        new_row = {'odor_onset': onset, 'odor_offset': np.nan, 'condition': condition}
+        odor_triggers.loc[len(odor_triggers)] = new_row
+        
+    try:
+        assert np.any(odor_triggers['condition'].values == reward_sites['odor_label'].values)
+        reward_sites['odor_onset'] = odor_triggers['odor_onset'].values
+        reward_sites['odor_offset'] = odor_triggers['odor_offset'].values
+    except:
+        print('Odor labels do not match')
+
+    return reward_sites
+    ## ------------------------------------------------------------------------- ##
+
+def parse_data(data: pd.DataFrame):
+    '''
+    Parse the data from the session and return the reward sites, active sites and encoder data
+    
+    Inputs:
+    data: pd.DataFrame
+        Data from the session
+        
+    Returns:
+    reward_sites: pd.DataFrame
+        Dataframe with the reward sites
+    active_site: pd.DataFrame
+        Dataframe with the active sites (Reward, interpatch and intersite instantiations)
+    encoder_data: pd.DataFrame
+        Dataframe with the rotary encoder data
+        
+    '''
+    ## Load data from encoder efficiently
+    data['harp_behavior'].streams.AnalogData.load_from_file()
+    encoder_data = data['harp_behavior'].streams.AnalogData.data
+
+    try:
+        data['config'].streams.Rig.load_from_file()
+        wheel_size = data['config'].streams.Rig.data['treadmill']['wheelDiameter']
+        PPR = -data['config'].streams.Rig.data['treadmill']['pulsesPerRevolution']
+    except:
+        wheel_size = 15
+        PPR = -8192.0
+
+    perimeter = wheel_size*np.pi
+    resolution = perimeter / PPR
+    encoder_data['velocity'] = (encoder_data['Encoder'] * resolution)*1000
+
+    # Reindex the seconds so they are aligned to beginning of the session
+    start_time = encoder_data.index[0]
+
+    data['software_events'].streams.ActivePatch.load_from_file()
+    data['software_events'].streams.GiveReward.load_from_file()
+    patches = data['software_events'].streams.ActivePatch.data
+    reward = data['software_events'].streams.GiveReward.data
+
+    try:
+        reward_available = patches.iloc[0]["data"]["patchRewardFunction"]["initialRewardAmount"]
+    except:
+        reward_available = patches.iloc[0]["data"]['reward_specification']['reward_function']['available']['b']
+        
+    reward_updates = pd.concat([patches, reward])
+    reward_updates.sort_index(inplace=True)
+    reward_updates["current_reward"] = np.nan
+    for event in reward_updates.iterrows():
+        if event[1]["name"] == 'GiveReward': #update reward
+            reward_available -= event[1]["data"]
+        elif event[1]["name"] == 'ActivePatch': #reset reward
+            try:
+                # Old way of obtaining the reward amount
+                reward_available = event[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
+            except:
+                reward_available = event[1]["data"]['reward_specification']['reward_function']['available']['b']
+        else:
+            raise ValueError("Unknown event type")
+        reward_updates.at[event[0], "current_reward"] = reward_available
+
+    # Get the first odor onset per reward site
+    data['software_events'].streams.ActiveSite.load_from_file()
+    active_site = data['software_events'].streams.ActiveSite.data
+
+    # Use json_normalize to create a new DataFrame from the 'data' column
+    df_normalized = pd.json_normalize(active_site['data'])
+    df_normalized.index = active_site.index
+
+    # Concatenate the normalized DataFrame with the original DataFrame
+    active_site = pd.concat([active_site, df_normalized], axis=1)
+
+    active_site['label'] = np.where(active_site['label'] == 'Reward', 'RewardSite', active_site['label'])
+    active_site.rename(columns={'startPosition':'start_position'}, inplace= True)
+    # Rename columns
+
+    active_site = active_site[['label', 'start_position','length']]
+    reward_sites = active_site[active_site['label'] == 'RewardSite']
+
+    for site in reward_sites.itertuples():
+        arg_min, val_min = processing.find_closest(site.Index, reward_updates.index.values, mode="below_zero")
+        reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
+        
+    # Find responses to Reward site
+    data['software_events'].streams.ChoiceFeedback.load_from_file()
+    choiceFeedback = data['software_events'].streams.ChoiceFeedback.data
+
+    reward_sites.loc[:, "active_patch"] = -1
+    reward_sites.loc[:, "visit_number"] = -1
+    reward_sites.loc[:, "has_choice"] = False
+    reward_sites.loc[:, "reward_delivered"] = 0
+    reward_sites.loc[:, "past_no_reward_count"] = 0
+    past_no_reward_counter = 0
+    current_patch_idx = -1
+
+    visit_number = 0
+    for idx, event in enumerate(reward_sites.iterrows()):
+        arg_min, val_min = processing.find_closest(event[0], patches.index.values, mode="below_zero")
+        if not(np.isnan(arg_min)):
+            reward_sites.loc[event[0], "active_patch"] = arg_min
+        if current_patch_idx != arg_min:
+            current_patch_idx = arg_min
+            visit_number = 0
+        else:
+            visit_number += 1
+        reward_sites.loc[event[0], "visit_number"] = visit_number
+
+        if idx < len(reward_sites) - 1:
+            choice = choiceFeedback.loc[(choiceFeedback.index >= reward_sites.index[idx]) & (choiceFeedback.index < reward_sites.index[idx+1])]
+            reward_in_site = reward.loc[(reward.index >= reward_sites.index[idx]) & (reward.index < reward_sites.index[idx+1])]
+        else:
+            choice = choiceFeedback.loc[(choiceFeedback.index >= reward_sites.index[idx])]
+            reward_in_site = reward.loc[(reward.index >= reward_sites.index[idx])]
+        reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
+        reward_sites.loc[event[0], "reward_delivered"] = reward_in_site.iloc[0]["data"] if len(reward_in_site) > 0 else 0
+        reward_sites.loc[event[0], "past_no_reward_count"] = past_no_reward_counter
+        if reward_sites.loc[event[0], "reward_delivered"] == 0 and reward_sites.loc[event[0], "has_choice"] == 1:
+            past_no_reward_counter += 1
+        else:
+            past_no_reward_counter = 0
+
+    df_patch = pd.json_normalize(patches['data'])
+    df_patch.reset_index(inplace=True)
+    df_patch.rename(columns={'index':'active_patch', 'label': 'odor_label', 'rewardSpecifications.amount': 'amount'}, inplace=True)
+    df_patch.rename(columns={'reward_specification.reward_function.amount.value': 'amount'}, inplace=True)
+    reward_sites = pd.merge(reward_sites.reset_index(),df_patch[['odor_label', 'active_patch', 'amount']],  on='active_patch')
+
+    # Create new column for adjusted seconds to start of session
+    reward_sites['adj_seconds'] = reward_sites['Seconds'] - start_time
+    reward_sites.index = reward_sites['Seconds']
+    reward_sites.drop(columns=['Seconds'], inplace=True)
+
+    try:
+        reward_sites = odor_data_harp_olfactometer(data, reward_sites)
+    except:
+        print('No olfactometer data')
+        pass
+
+    # ---------------- Add water triggers times ---------------- #
+    water = data['harp_behavior'].streams.OutputSet.data[['SupplyPort0']]
+    reward_sites['next_index'] = reward_sites.index.to_series().shift(-1)
+    reward_sites['water_onset'] = None
+
+    # Iterate through the actual index of df1
+    for value in water.index:
+        # Check if the value is between 'Start' and 'End' in df2
+        matching_row = reward_sites[(reward_sites.index <= value) & (reward_sites['next_index'].values >= value)]
+
+        
+        # If a matching row is found, update the corresponding row in water with the index value
+        if not matching_row.empty:
+            matching_index = matching_row.index[0]  # Assuming there's at most one matching row
+            reward_sites.at[matching_index, 'water_onset'] = value
+            
+    # ---------------------------------------------------- #
+    
+    # ---------------- Add stop triggers times ---------------- #
+    reward_sites['stop_time'] = None
+
+    # Iterate through the actual index of df1
+    for value in choiceFeedback.index:
+        # Check if the value is between 'Start' and 'End' in df2
+        matching_row = reward_sites[(reward_sites.index <= value) & (reward_sites['next_index'].values >= value)]
+
+        # If a matching row is found, update the corresponding row in water with the index value
+        if not matching_row.empty:
+            matching_index = matching_row.index[0]  # Assuming there's at most one matching row
+            reward_sites.at[matching_index, 'stop_time'] = value
+            
+    reward_sites.drop(columns=['next_index'], inplace=True)
+    # ---------------------------------------------------- #
+    
+    # Add colum for site number
+    reward_sites.loc[:,'total_sites'] = np.arange(len(reward_sites))
+    reward_sites.loc[:,'depleted'] = np.where(reward_sites['reward_available'] == 0, 1, 0)
+    reward_sites.loc[:,'collected'] = np.where((reward_sites['reward_delivered'] != 0), 1, 0)
+    
+    reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
+    reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
+    reward_sites.drop(columns=['next_visit_number'], inplace=True)
+
+    if reward_sites.reward_available.max() >= 100:
+        reward_sites['reward_available'] = 100
+        
+    encoder_data = analysis.fir_filter(encoder_data, 5)
+
+    return reward_sites, active_site, encoder_data, data['config']
 
 def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000/2.):
 
