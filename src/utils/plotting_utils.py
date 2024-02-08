@@ -27,6 +27,171 @@ pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
 
+
+def speed_traces_available(trial_summary, mouse, session, config, save=False):
+    n_odors = len(trial_summary.odor_label.unique())
+    fig, ax = plt.subplots(n_odors,5, figsize=(18, len(trial_summary.odor_label.unique())*4), sharex=True, sharey=True)
+    window = (-0.5, 2)
+    colors = ['crimson','darkgreen']
+    for j in range(len(trial_summary.odor_label.unique())):
+        if n_odors == 1:
+            ax1 = ax
+        else:
+            ax1 = ax[j]
+        ax1[0].set_ylabel('Velocity (cm/s)')
+
+        for i in [0,1,2,3,4]:
+            if n_odors == 1:
+                ax[i].set_xlabel('Time after odor onset (s)')
+            else:
+                ax[len(trial_summary.odor_label.unique())-1][j].set_xlabel('Time after odor onset (s)')
+
+            ax1[i].set_ylim(-10,80)
+            ax1[i].set_xlim(window)
+            ax1[i].hlines(5, window[0], window[1], color='black', linewidth=1, linestyles=':')
+            ax1[i].fill_betweenx(np.arange(-10,80,0.1), -0.5,0, color='#808080', alpha=.5, linewidth=0)
+
+    for i in trial_summary.has_choice.unique():
+        i = int(i)
+        for j, odor_label in enumerate(trial_summary.odor_label.unique()):
+            if n_odors == 1:
+                ax1 = ax
+            else:
+                ax1 = ax[j]
+                
+            palette_dict = choose_palette(odor_label, trial_summary.loc[(trial_summary.odor_label == odor_label)], config)
+
+            df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.has_choice == i)]
+                        .groupby(['reward_available','total_sites','times','amount'])[['speed']].mean().reset_index())
+            
+            if df_results.empty:
+                continue
+                        
+            sns.lineplot(x='times', y='speed', data=df_results, hue='reward_available',  palette=palette_dict, ci=None,legend=False, ax= ax1[i+2])   
+            sns.lineplot(x='times', y='speed', data=df_results, color=colors[i], palette=palette_dict, ci=('sd'), ax= ax1[4])      
+            
+            for site in df_results.total_sites.unique():
+                plot_df = df_results.loc[df_results.total_sites==site]
+                sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_available'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[i])  
+
+            ax1[2].set_title(f'Odor {odor_label} ')
+            
+            if i == 1:
+                ax1[i].text(1.2, 75, f'Stopped', fontsize=12)
+                ax1[i+2].text(1.2, 75, f'Stopped', fontsize=12)
+            else:
+                ax1[i].text(1.2, 75, f'Not stopped', fontsize=12)
+                ax1[i+2].text(1.2, 75, f'Not stopped', fontsize=12)
+
+    sns.despine()     
+    plt.suptitle(mouse +'_' + session)       
+    plt.tight_layout()
+
+    
+    if save != False:
+        save.savefig(fig)
+        plt.close(fig)
+        
+def choose_palette(odor_label, data, config: dict = None):
+    print(data.amount.iloc[0])
+    if data.amount.iloc[0] == 7:
+        if int(data.reward_available.max()) == 25:  
+            colors_reward=sns.color_palette("RdYlBu", n_colors=5)
+            palette_dict = dict(zip(np.arange(4,32,7), colors_reward))
+            palette_dict[0] = '#d73027'
+        else:
+            colors_reward=['#d73027','#fdae61','#abd9e9','#4575b4']        
+            palette_dict = dict(zip(np.arange(0,28,7), colors_reward))
+    elif data.amount.iloc[0] == 1:
+        if int(data.reward_available.max()) == 3:  
+            colors_reward=['#d73027','#fdae61','#abd9e9','#4575b4']
+            palette_dict = dict(zip(np.arange(0,4,1), colors_reward))
+
+        elif int(data.reward_available.max()) == 10:  
+            colors_reward=sns.color_palette("RdYlBu", n_colors=11)
+            palette_dict = dict(zip(np.arange(0,11,1), colors_reward))
+            
+        elif int(data.reward_available.max()) == 100:
+            palette_dict = {100: '#4575b4'}
+            
+        elif int(data.reward_available.max()) == 0:
+            palette_dict = {0: '#d73027'}
+            
+        else:
+            colors_reward=sns.color_palette("RdYlBu", n_colors=int(data.reward_available.max())+1)
+            palette_dict = dict(zip(np.arange(0,config['environmentStatistics']['patches'][0]['patchRewardFunction']['initialRewardAmount']+1,1), colors_reward))
+
+    elif data.amount.iloc[0] == 5:
+        if data.reward_available.max() == 100:
+            colors_reward=['#4575b4']
+            palette_dict = {100: '#4575b4'}
+        else:
+            colors_reward=sns.color_palette("RdYlBu", n_colors=6)
+            palette_dict = dict(zip(np.arange(0,30,5), colors_reward))
+        
+    elif data.amount.iloc[0] == 3:     
+        if int(data.reward_available.max()) == 25:  
+            colors_reward=sns.color_palette("RdYlBu", n_colors=9)
+            palette_dict = dict(zip(np.arange(1,28,3), colors_reward))
+            palette_dict[0] = '#d73027'
+        else:
+            colors_reward=sns.color_palette("RdYlBu", n_colors=9)
+            palette_dict = dict(zip(np.arange(0,24,3), colors_reward))
+        
+    elif data.amount.iloc[0] == 4:  
+        if int(data.reward_available.max()) == 25: 
+            colors_reward=sns.color_palette("RdYlBu", n_colors=8)
+            palette_dict = dict(zip(np.arange(1,29,4), colors_reward))
+            palette_dict[0] = '#d73027'
+        elif int(data.reward_available.max()) == 50: 
+            colors_reward=sns.color_palette("RdYlBu", n_colors=14)
+            palette_dict = dict(zip(np.arange(2,54,4), colors_reward))
+            palette_dict[0] = '#d73027'
+
+    elif data.amount.iloc[0] == 0:  
+        palette_dict = {0: '#d73027'}
+
+    return palette_dict
+
+def speed_traces_summary(trial_summary: pd.DataFrame, mouse: str, session: str, config: dict, save: bool = False):
+    ''' Plots the speed traces for each odor label condition '''
+    
+    n_odors = trial_summary.odor_label.unique()
+    fig, ax1 = plt.subplots(1,len(n_odors), figsize=(len(n_odors)*4, 5), sharex=True, sharey=True)
+    window = (-0.5, 2)
+    colors = ['crimson','darkgreen']
+    for j, odor_label in enumerate(n_odors):
+        ax1[0].set_ylabel('Velocity (cm/s)')
+        ax1[j].set_xlabel('Time after odor onset (s)')
+        ax1[j].set_ylim(-10,80)
+        ax1[j].set_xlim(window)
+        ax1[j].hlines(5, window[0], window[1], color='black', linewidth=1, linestyles=':')
+        ax1[j].fill_betweenx(np.arange(-10,80,0.1), -0.5,0, color='#808080', alpha=.5, linewidth=0)
+        
+        palette_dict = choose_palette(odor_label, trial_summary.loc[(trial_summary.odor_label == odor_label)], config)
+
+        df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.visit_number == 0)]
+                    .groupby(['reward_available','total_sites','times','amount'])[['speed']].mean().reset_index())
+        
+        if df_results.empty:
+            continue
+        
+        for site in df_results.total_sites.unique():
+            plot_df = df_results.loc[df_results.total_sites==site]
+            sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_available'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[j])  
+        
+        sns.lineplot(x='times', y='speed', data=df_results, color=palette_dict[df_results['reward_available'].unique()[0]], ci=('sd'), legend=False, linewidth=2, ax=ax1[j])  
+
+        ax1[j].set_title(f'Odor {odor_label} ')
+        
+    sns.despine()     
+    plt.suptitle(mouse +'_' + session+'_' + 'First visit speed traces')       
+    plt.tight_layout()
+    
+    if save != False:
+        save.savefig(fig)
+        plt.close(fig)
+
 def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mouse: str, session: str, aligned: str=None, window: tuple=(-0.5, 2)):
     '''
     Crop the snippets of speed traces that are aligned to different epochs
@@ -63,16 +228,9 @@ def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mou
         trial.index -=  start_reward
         trial_average['speed'] = trial.values
         trial_average['times'] = np.around(trial.index,3)
-        trial_average['odor_label'] = np.repeat(row['odor_label'], len(trial.values))
-        trial_average['collected'] = np.repeat(row['collected'], len(trial.values))
-        trial_average['depleted'] = np.repeat(row['depleted'], len(trial.values))
-        trial_average['reward_available'] = np.repeat(row['reward_available'], len(trial.values))
-        trial_average['total_sites'] = np.repeat(row['total_sites'], len(trial.values))
-        trial_average['has_choice'] = np.repeat(row['has_choice'], len(trial.values))
-        trial_average['reward_available'] = np.repeat(row['reward_available'], len(trial.values))
-        trial_average['visit_number'] = np.repeat(row['visit_number'], len(trial.values))
-        trial_average['last_visit'] = np.repeat(row['last_visit'], len(trial.values))
-        trial_average['amount'] = np.repeat(row['amount'], len(trial.values))
+        
+        for column in reward_sites.columns:
+            trial_average[column] = np.repeat(row[column], len(trial.values))
 
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
     trial_summary['mouse'] = mouse
