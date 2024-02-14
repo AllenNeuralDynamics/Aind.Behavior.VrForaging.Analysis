@@ -1,4 +1,5 @@
 # %%
+from math import e
 import sys
 sys.path.append('../src/')
 
@@ -26,7 +27,6 @@ import warnings
 pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
-
 
 def speed_traces_available(trial_summary, mouse, session, config, save=False):
     n_odors = len(trial_summary.odor_label.unique())
@@ -87,13 +87,86 @@ def speed_traces_available(trial_summary, mouse, session, config, save=False):
     plt.suptitle(mouse +'_' + session)       
     plt.tight_layout()
 
-    
     if save != False:
         save.savefig(fig)
         plt.close(fig)
+
+def speed_traces_efficient(trial_summary: pd.DataFrame, mouse, session, save=False, odor: str = 'all'):
+    ''' Plots the speed traces for each stopping condition '''
+    odor='all'
+    if odor != 'all':
+        reward_sites = reward_sites.loc[reward_sites['odor_label'] == odor]
+
+    window = (-0.5, 2)
+    colors = ['crimson', 'darkgreen']
+    fig, ax= plt.subplots(3,3, figsize=(12,12), sharex=True, sharey=True)
+
+    for j in [0,1,2]:
+        ax[j][0].set_ylabel('Velocity (cm/s)')
+        for i in [0,1]:
+            ax[j][i].set_ylim(-10,80)
+            ax[j][i].set_xlim(window)
+
+            ax[j][i].hlines(5, window[0], window[1], color='black', linewidth=1, linestyles=':')
+            ax[j][i].fill_betweenx(np.arange(-10,80,0.1), -2,0, color='#808080', alpha=.5, linewidth=0)
+
+            ax[j][2].fill_betweenx(np.arange(-10,80,0.1), -2,0, color='#808080', alpha=.5, linewidth=0)
+            ax[j][2].hlines(5, window[0], window[1], color='black', linewidth=1, linestyles=':')
+            ax[len(trial_summary.odor_label.unique())-1][i].set_xlabel('Time after odor onset (s)')
+
+    for collected_label in [0, 1]:
+        for i, selected_trials in trial_summary.loc[trial_summary.has_choice == collected_label].groupby('total_sites'):
+            ax[0][collected_label].plot('times','speed', data=selected_trials, color='black', alpha=0.3, linewidth=0.5)
+
+        selected_trials = trial_summary.loc[trial_summary.has_choice == collected_label].groupby('times')['speed'].mean().reset_index()
+        ax[0][collected_label].plot('times','speed', data=selected_trials, color='black', linewidth=3)
+            
+        if collected_label == 1:
+            ax[0][collected_label].set_title(f' Stopped', color=colors[collected_label])
+        else:
+            ax[0][collected_label].set_title(f' Not Stopped', color=colors[collected_label])
         
-def choose_palette(odor_label, data, config: dict = None):
-    print(data.amount.iloc[0])
+        sns.lineplot(x='times', y='speed', data=trial_summary.loc[(trial_summary.has_choice == collected_label)],  color=colors[collected_label], ax=ax[0][2], errorbar=('sd'), linewidth=2)
+        
+    # ---------- water collection or not
+        plot_df = trial_summary.loc[(trial_summary.collected == collected_label)&(trial_summary.has_choice == 1)]
+        for i, selected_trials in plot_df.groupby('total_sites'):
+            ax[1][collected_label].plot('times','speed', data=selected_trials, color='black', alpha=0.3, linewidth=0.5)
+
+        selected_trials = plot_df.groupby('times')['speed'].mean().reset_index()
+        ax[1][collected_label].plot('times','speed', data=selected_trials, color='black', linewidth=3)
+            
+        if collected_label == 1:
+            ax[1][collected_label].set_title(f' Rewarded stop', color=colors[collected_label])
+        else:
+            ax[1][collected_label].set_title(f' No reward stop', color=colors[collected_label])
+        
+        sns.lineplot(x='times', y='speed', data=plot_df,  color=colors[collected_label], ax=ax[1][2], errorbar=('sd'), linewidth=2)
+        
+    # ------------ water depletion or not
+        plot_df = trial_summary.loc[(trial_summary.depleted == collected_label)&(trial_summary.has_choice == 1)&(trial_summary.collected == 0)]
+        for i, selected_trials in plot_df.groupby('total_sites'):
+            ax[2][collected_label].plot('times','speed', data=selected_trials, color='black', alpha=0.3, linewidth=0.5)
+
+        selected_trials = plot_df.groupby('times')['speed'].mean().reset_index()
+        ax[2][collected_label].plot('times','speed', data=selected_trials, color='black', linewidth=3)
+            
+        if collected_label == 1:
+            ax[2][collected_label].set_title(f' No reward - depleted', color=colors[collected_label])
+        else:
+            ax[2][collected_label].set_title(f' No rward - not depleted', color=colors[collected_label])
+        
+        sns.lineplot(x='times', y='speed', data=plot_df,  color=colors[collected_label], ax=ax[2][2], errorbar=('sd'), linewidth=2)
+
+    sns.despine()
+    plt.suptitle(mouse +'_' + session +'_' + odor)
+    plt.tight_layout()
+    
+    if save != False:
+        save.savefig(fig, bbox_inches='tight')
+        plt.close(fig)
+        
+def choose_palette(odor_label, data, config):
     if data.amount.iloc[0] == 7:
         if int(data.reward_available.max()) == 25:  
             colors_reward=sns.color_palette("RdYlBu", n_colors=5)
@@ -153,23 +226,28 @@ def choose_palette(odor_label, data, config: dict = None):
 
     return palette_dict
 
-def speed_traces_summary(trial_summary: pd.DataFrame, mouse: str, session: str, config: dict, save: bool = False):
-    ''' Plots the speed traces for each odor label condition '''
+def velocity_traces_odor_summary(trial_summary, config, mouse, session, window: tuple = (-0.5, 2), max_range: int = 60, mean: bool = False, save=False):
     
+    ''' Plots the speed traces for each odor label condition '''
     n_odors = trial_summary.odor_label.unique()
-    fig, ax1 = plt.subplots(1,len(n_odors), figsize=(len(n_odors)*4, 5), sharex=True, sharey=True)
-    window = (-0.5, 2)
+    
+    fig, ax1 = plt.subplots(1,len(n_odors), figsize=(len(n_odors)*4, 4), sharex=True, sharey=True)
     colors = ['crimson','darkgreen']
+    colors_odors = ['orange', 'yellow', 'darkgreen']
     for j, odor_label in enumerate(n_odors):
-        ax1[0].set_ylabel('Velocity (cm/s)')
-        ax1[j].set_xlabel('Time after odor onset (s)')
-        ax1[j].set_ylim(-10,80)
-        ax1[j].set_xlim(window)
-        ax1[j].hlines(5, window[0], window[1], color='black', linewidth=1, linestyles=':')
-        ax1[j].fill_betweenx(np.arange(-10,80,0.1), -0.5,0, color='#808080', alpha=.5, linewidth=0)
-        
-        palette_dict = choose_palette(odor_label, trial_summary.loc[(trial_summary.odor_label == odor_label)], config)
+        if len(n_odors) != 1:
+            ax = ax1[j]
+            ax1[0].set_ylabel('Velocity (cm/s)')
+        else:
+            ax = ax1        
+            ax.set_ylabel('Velocity (cm/s)')
 
+        ax.set_xlabel('Time after odor onset (s)')
+        ax.set_ylim(-10,max_range)
+        ax.set_xlim(window)
+        ax.hlines(5, window[0], window[1], color='black', linewidth=1, linestyles='dashed')
+        ax.fill_betweenx(np.arange(-10,max_range,0.1), 0, window[1], color=colors_odors[j], alpha=.3, linewidth=0)
+        
         df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.visit_number == 0)]
                     .groupby(['reward_available','total_sites','times','amount'])[['speed']].mean().reset_index())
         
@@ -178,12 +256,13 @@ def speed_traces_summary(trial_summary: pd.DataFrame, mouse: str, session: str, 
         
         for site in df_results.total_sites.unique():
             plot_df = df_results.loc[df_results.total_sites==site]
-            sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_available'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[j])  
+            sns.lineplot(x='times', y='speed', data=plot_df, color='black', legend=False, linewidth=0.5, alpha=0.5, ax=ax)  
         
-        sns.lineplot(x='times', y='speed', data=df_results, color=palette_dict[df_results['reward_available'].unique()[0]], ci=('sd'), legend=False, linewidth=2, ax=ax1[j])  
+        if mean:
+            sns.lineplot(x='times', y='speed', data=df_results, color='black', ci=('sd'), legend=False, linewidth=2, ax=ax)  
 
-        ax1[j].set_title(f'Odor {odor_label} ')
-        
+        ax.set_title(f'Odor {odor_label} ')
+
     sns.despine()     
     plt.suptitle(mouse +'_' + session+'_' + 'First visit speed traces')       
     plt.tight_layout()
@@ -335,8 +414,10 @@ def session_raster_segmented(reward_sites,config, save=False):
         save.savefig(fig, bbox_inches='tight')
         plt.close(fig)
 
-def pstay_past_no_rewards(reward_sites, config, save=False):
+def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool=False):
     odor_label_list = reward_sites['odor_label'].unique()
+    df_results_summary = pd.DataFrame()
+
     fig, ax1 = plt.subplots(1, len(odor_label_list), figsize=(4*len(odor_label_list),4))        
     for i, odor_label in enumerate(odor_label_list):
         if len(odor_label_list) != 1:
@@ -349,6 +430,10 @@ def pstay_past_no_rewards(reward_sites, config, save=False):
         df_results = df_results.loc[df_results['visit_number'] >= 3]
         
         sufficient_sites = df_results.visit_number.unique()
+        
+        df_results['odor_label'] = odor_label
+        df_results['amount'] = reward_sites.loc[reward_sites['odor_label'] == odor_label]['amount'].unique()[0]
+        df_results_summary = pd.concat([df_results, df_results_summary])
         
         ax.set_title(odor_label + '_' + reward_sites.loc[reward_sites['odor_label'] == odor_label]['reward_delivered'].max().astype(str))
         sns.lineplot(x='past_no_reward_count', y='p(Stay)', data=df_results, color = 'k', marker = "o", ax=ax)
@@ -366,14 +451,23 @@ def pstay_past_no_rewards(reward_sites, config, save=False):
             else:
                 ax.text(df_results['past_no_reward_count'].values[j], df_results['p(Stay)'].values[j]-0.1, str(df_results['visit_number'].values[j]), ha='center', size=10, color='red')
         
+        ax.set_xticks(df_results['past_no_reward_count'].values)
+
     sns.despine()
     plt.tight_layout()
     if save != False:
         save.savefig(fig)
-        plt.close(fig)
+    else:
+        plt.show()
+    plt.close(fig)
+        
+    if summary == True:
+        return df_results_summary
 
-def pstay_visit_number(reward_sites, config, save=False):
+def pstay_visit_number(reward_sites, config, save=False, summary: bool=False):
     odor_label_list = reward_sites['odor_label'].unique()
+    df_results_summary = pd.DataFrame()
+    
     fig, ax1 = plt.subplots(1, len(odor_label_list), figsize=(4*len(odor_label_list),4))        
     for i, odor_label in enumerate(odor_label_list):
         if len(odor_label_list) != 1:
@@ -384,8 +478,12 @@ def pstay_visit_number(reward_sites, config, save=False):
         df_results = reward_sites.loc[reward_sites['odor_label'] == odor_label].groupby('visit_number')['label'].count().reset_index()
         df_results.rename(columns={'label':'total_trials'}, inplace=True)
         df_results['p(Stay)'] = reward_sites.loc[reward_sites['odor_label'] == odor_label].groupby('visit_number')['has_choice'].mean()
-        # df_results = df_results.loc[df_results['total_trials'] >= 3]
+        df_results = df_results.loc[df_results['total_trials'] >= 3]
         sufficient_sites = df_results.visit_number.unique()
+        
+        df_results['odor_label'] = odor_label
+        df_results['amount'] = reward_sites.loc[reward_sites['odor_label'] == odor_label]['amount'].unique()[0]
+        df_results_summary = pd.concat([df_results, df_results_summary])
         
         ax.set_title(odor_label + '_' + reward_sites.loc[reward_sites['odor_label'] == odor_label]['reward_delivered'].max().astype(str))
         sns.lineplot(x='visit_number', y='p(Stay)', data=df_results, color = 'k', marker = "o", ax=ax)
@@ -407,9 +505,14 @@ def pstay_visit_number(reward_sites, config, save=False):
     plt.tight_layout()
     if save != False:
         save.savefig(fig)
-        plt.close(fig)
+    else:
+        plt.show()
+    plt.close(fig)
         
-def length_distributions(active_site: pd.DataFrame, delay: bool=False, save: bool=False):
+    if summary == True:
+        return df_results_summary
+        
+def length_distributions(active_site: pd.DataFrame, delay: bool=False, save =False):
     
     def larger_value(value1, value2):
         if value1 < value2:
@@ -448,4 +551,7 @@ def length_distributions(active_site: pd.DataFrame, delay: bool=False, save: boo
     
     if save != False:
         save.savefig(fig)
-        plt.close(fig)
+    else:
+        plt.show()
+        
+    plt.close(fig)
