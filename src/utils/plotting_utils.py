@@ -28,6 +28,7 @@ pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
 
+
 def speed_traces_available(trial_summary, mouse, session, config, save=False):
     n_odors = len(trial_summary.odor_label.unique())
     fig, ax = plt.subplots(n_odors,5, figsize=(18, len(trial_summary.odor_label.unique())*4), sharex=True, sharey=True)
@@ -231,7 +232,7 @@ def velocity_traces_odor_summary(trial_summary, config, mouse, session, window: 
     ''' Plots the speed traces for each odor label condition '''
     n_odors = trial_summary.odor_label.unique()
     
-    fig, ax1 = plt.subplots(1,len(n_odors), figsize=(len(n_odors)*4, 4), sharex=True, sharey=True)
+    fig, ax1 = plt.subplots(1,len(n_odors), figsize=(len(n_odors)*4, 5), sharex=True, sharey=True)
     colors = ['crimson','darkgreen']
     colors_odors = ['orange', 'yellow', 'darkgreen']
     for j, odor_label in enumerate(n_odors):
@@ -302,9 +303,10 @@ def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mou
         trial_average = pd.DataFrame()
         if aligned is not None:
             trial = encoder_data.loc[row[aligned] + window[0]: row[aligned] + window[1], 'filtered_velocity']
+            trial.index -=  row[aligned]
         else:
             trial = encoder_data.loc[start_reward + window[0]: start_reward + window[1], 'filtered_velocity']
-        trial.index -=  start_reward
+            trial.index -=  start_reward
         trial_average['speed'] = trial.values
         trial_average['times'] = np.around(trial.index,3)
         
