@@ -32,6 +32,24 @@ _payloadtypes = {
                 68 : np.dtype(np.float32)
                 }
 
+def compute_window(data, runningwindow,option, trial):
+    """
+    Computes a rolling average with a length of runningwindow samples.
+    """
+    performance = []
+    end=False
+    for i in range(len(data)):
+        if data[trial].iloc[i] <= runningwindow:
+            # Store the first index of that session
+            if end == False:
+                start=i
+                end=True
+            performance.append(round(np.mean(data[option].iloc[start:i + 1]), 2))
+        else:
+            end=False
+            performance.append(round(np.mean(data[option].iloc[i - runningwindow:i]), 2))
+    return performance
+
 def read_harp_bin(file):
 
     data = np.fromfile(file, dtype=np.uint8)
@@ -288,6 +306,7 @@ def parse_data_old(data, path):
     reward_updates = pd.concat([patches, reward])
     reward_updates.sort_index(inplace=True)
     reward_updates["current_reward"] = np.nan
+    
     for event in reward_updates.iterrows():
         if event[1]["name"] == 'GiveReward': #update reward
             reward_available -= event[1]["data"]
@@ -303,7 +322,10 @@ def parse_data_old(data, path):
         
     for site in reward_sites.itertuples():
         arg_min, val_min = processing.find_closest(site.Index, reward_updates.index.values, mode="below_zero")
-        reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
+        try:
+            reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
+        except:
+            reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
 
     # Find responses to Reward site
     data['software_events'].streams.ChoiceFeedback.load_from_file()
@@ -371,7 +393,6 @@ def parse_data_old(data, path):
         # Check if the value is between 'Start' and 'End' in df2
         matching_row = reward_sites[(reward_sites.index <= value) & (reward_sites['next_index'].values >= value)]
 
-        
         # If a matching row is found, update the corresponding row in water with the index value
         if not matching_row.empty:
             matching_index = matching_row.index[0]  # Assuming there's at most one matching row
