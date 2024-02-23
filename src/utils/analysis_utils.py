@@ -31,6 +31,23 @@ _payloadtypes = {
                 136 : np.dtype(np.int64),
                 68 : np.dtype(np.float32)
                 }
+def find_file(start_dir: str, filename_part: str):
+    '''
+    Find a file in a directory
+    
+    Inputs:
+    start_dir: str
+        The directory to start the search. It doesn't go deeper from the first folder
+    filename_part: str
+        The part of the filename to search. This can be a substring of the filename
+        
+    Returns:
+        str
+            The full path of the file
+    '''
+    for filename in os.listdir(start_dir):
+        if filename_part in filename:
+            return os.path.join(start_dir, filename)
 
 def compute_window(data, runningwindow,option, trial):
     """
