@@ -516,32 +516,6 @@ def parse_data(data: pd.DataFrame):
     # Reindex the seconds so they are aligned to beginning of the session
     start_time = encoder_data.index[0]
 
-    data['software_events'].streams.ActivePatch.load_from_file()
-    data['software_events'].streams.GiveReward.load_from_file()
-    patches = data['software_events'].streams.ActivePatch.data
-    reward = data['software_events'].streams.GiveReward.data
-
-    reward.fillna(0, inplace=True)
-    try:
-        reward_available = patches.iloc[0]["data"]["patchRewardFunction"]["initialRewardAmount"]
-    except:
-        reward_available = patches.iloc[0]["data"]['reward_specification']['reward_function']['available']['b']
-        
-    reward_updates = pd.concat([patches, reward])
-    reward_updates.sort_index(inplace=True)
-    reward_updates["current_reward"] = np.nan
-    for event in reward_updates.iterrows():
-        if event[1]["name"] == 'GiveReward': #update reward
-            reward_available -= event[1]["data"]
-        elif event[1]["name"] == 'ActivePatch': #reset reward
-            try:
-                # Old way of obtaining the reward amount
-                reward_available = event[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
-            except:
-                reward_available = event[1]["data"]['reward_specification']['reward_function']['available']['b']
-        else:
-            raise ValueError("Unknown event type")
-        reward_updates.at[event[0], "current_reward"] = reward_available
 
     # Get the first odor onset per reward site
     data['software_events'].streams.ActiveSite.load_from_file()
@@ -556,15 +530,54 @@ def parse_data(data: pd.DataFrame):
 
     active_site['label'] = np.where(active_site['label'] == 'Reward', 'RewardSite', active_site['label'])
     active_site.rename(columns={'startPosition':'start_position'}, inplace= True)
+    
     # Rename columns
 
     active_site = active_site[['label', 'start_position','length']]
     reward_sites = active_site[active_site['label'] == 'RewardSite']
 
+    # ------------------ Reward available (for when we deplete by amount------------------
+    data['software_events'].streams.ActivePatch.load_from_file()
+    data['software_events'].streams.GiveReward.load_from_file()
+    patches = data['software_events'].streams.ActivePatch.data
+    reward = data['software_events'].streams.GiveReward.data
+
+    reward.fillna(0, inplace=True)
+    try:
+        # Old way of obtaining the reward amount
+        reward_available = patches.iloc[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
+    except:
+        try:
+            reward_available = patches.iloc[1]["data"]['reward_specification']['reward_function']['available']['b']
+        except:
+            reward_available = (patches["data"].iloc[1]['reward_specification']['reward_function']['amount']['a'] + 
+            patches["data"].iloc[1]['reward_specification']['reward_function']['amount']['d'])
+        
+    reward_updates = pd.concat([patches, reward])
+    reward_updates.sort_index(inplace=True)
+    reward_updates["current_reward"] = np.nan
+    for event in reward_updates.iterrows():
+        if event[1]["name"] == 'GiveReward': #update reward
+            reward_available -= event[1]["data"]
+        elif event[1]["name"] == 'ActivePatch': #reset reward
+            try:
+                # Old way of obtaining the reward amount
+                reward_available = event[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
+            except:
+                try:
+                    reward_available = event[1]["data"]['reward_specification']['reward_function']['available']['b']
+                except:
+                    reward_available = 151
+        else:
+            raise ValueError("Unknown event type")
+        reward_updates.at[event[0], "current_reward"] = reward_available
+        
     for site in reward_sites.itertuples():
         arg_min, val_min = processing.find_closest(site.Index, reward_updates.index.values, mode="below_zero")
         reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
         
+    ## ------------------
+    
     # Find responses to Reward site
     data['software_events'].streams.ChoiceFeedback.load_from_file()
     choiceFeedback = data['software_events'].streams.ChoiceFeedback.data
