@@ -514,7 +514,7 @@ def pstay_visit_number(reward_sites, config, save=False, summary: bool=False):
     if summary == True:
         return df_results_summary
         
-def length_distributions(active_site: pd.DataFrame, delay: bool=False, save =False):
+def length_distributions(active_site: pd.DataFrame, data, delay: bool=False, save =False):
     
     def larger_value(value1, value2):
         if value1 < value2:
@@ -523,21 +523,26 @@ def length_distributions(active_site: pd.DataFrame, delay: bool=False, save =Fal
             return value2
 
     fig,ax = plt.subplots(1,3, figsize=(12,4))
-    gap_size = active_site.loc[active_site['label'] == 'Gap'].length.values
+    if 'Gap' in active_site['label'].values:
+        gap_size = active_site.loc[active_site['label'] == 'Gap'].length.values
+    else:
+        gap_size = active_site.loc[active_site['label'] == 'InterSite'].length.values
     # print('Gap: ', np.round(np.mean(gap_size),3))
-    ax[0].hist(gap_size, bins=20, color='black')
-    ax[0].vlines(np.mean(gap_size), 0, 50, color='red', linewidth=2)
+    x = ax[0].hist(gap_size, bins=20, color='black')
+    ax[0].vlines(np.mean(gap_size), 0,  max(x[0]), color='red', linewidth=2)
     ax[0].set_title('Gap')
+    ax[0].set_xlabel('Distance (mm)')
 
     intersite_size = active_site.loc[active_site['label'] == 'InterPatch'].length.values
     # print('InterPatch: ', np.round(np.mean(intersite_size),3))
-    ax[1].hist(intersite_size, bins=20, color='black')
-    ax[1].vlines(np.mean(intersite_size), 0, 50, color='red', linewidth=2)
+    x = ax[1].hist(intersite_size, bins=20, color='black')
+    ax[1].vlines(np.mean(intersite_size), 0,  max(x[0]), color='red', linewidth=2)
     ax[1].set_title('InterPatch')
+    ax[1].set_xlabel('Distance (mm)')
 
     if delay == True:
-        waitReward = data['software_events'].streams.ChoiceFeedback.data['frameTimestamp'].values
-        waitLick = data['software_events'].streams.GiveReward.data['frameTimestamp'].values[1:]
+        waitReward = data['software_events'].streams.ChoiceFeedback.data.index
+        waitLick = data['software_events'].streams.GiveReward.data.index
         if len(waitLick) == len(waitReward):
             delay = waitLick-waitReward
         else:
@@ -545,15 +550,15 @@ def length_distributions(active_site: pd.DataFrame, delay: bool=False, save =Fal
             delay = waitLick[:result]-waitReward[:result]
             
         # print('Delay: ', np.round(np.mean(delay),3))
-        ax[2].hist(delay, bins=20, range=(0,2), color='black')
-        ax[2].vlines(np.mean(delay), 0, 50, color='red', linewidth=2)
+        x = ax[2].hist(delay, bins=20, range=(0,2), color='black')
+        ax[2].vlines(np.median(delay), 0, max(x[0]), color='red', linewidth=2)
         ax[2].set_title('Delay')
+        ax[2].set_xlabel('Time (s)')
 
     sns.despine()
     
     if save != False:
         save.savefig(fig)
+        plt.close(fig)
     else:
         plt.show()
-        
-    plt.close(fig)
