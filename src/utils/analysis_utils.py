@@ -31,6 +31,7 @@ _payloadtypes = {
                 136 : np.dtype(np.int64),
                 68 : np.dtype(np.float32)
                 }
+
 def find_file(start_dir: str, filename_part: str):
     '''
     Find a file in a directory
@@ -48,6 +49,7 @@ def find_file(start_dir: str, filename_part: str):
     for filename in os.listdir(start_dir):
         if filename_part in filename:
             return os.path.join(start_dir, filename)
+## ------------------------------------------------------------------------- ##
 
 def compute_window(data, runningwindow,option, trial):
     """
@@ -66,6 +68,7 @@ def compute_window(data, runningwindow,option, trial):
             end=False
             performance.append(round(np.mean(data[option].iloc[i - runningwindow:i]), 2))
     return performance
+## ------------------------------------------------------------------------- ##
 
 def read_harp_bin(file):
 
@@ -98,6 +101,7 @@ def read_harp_bin(file):
         ret_pd.index.names = ['Seconds']
 
     return ret_pd
+## ------------------------------------------------------------------------- ##
 
 def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
@@ -164,14 +168,27 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
     else:
         pass
     return _out_dict
+## ------------------------------------------------------------------------- ##
 
 def odor_data_harp_olfactometer(data, reward_sites):
+    """
+    Process odor data from the Harp Olfactometer.
 
-        #### --------------------------------------------------------- Odor onsets and offsets-------------------------------------------------- ####
+    Args:
+        data (dict): A dictionary containing the data from the Harp Olfactometer.
+        reward_sites (DataFrame): A DataFrame containing reward site information.
+
+    Returns:
+        DataFrame: A DataFrame containing the updated reward site information with odor onset and offset.
+
+    Raises:
+        AssertionError: If the odor labels do not match.
+
+    """
     # Assign odor labels to odor indexes
-    odor0=False
-    odor1=False
-    odor2=False
+    odor0 = False
+    odor1 = False
+    odor2 = False
     if 'environment_statistics' in data['config'].streams['TaskLogic'].data:
         environment = 'environment_statistics'
         odor_specifications = 'odor_specification'
@@ -246,10 +263,19 @@ def odor_data_harp_olfactometer(data, reward_sites):
         print('Odor labels do not match')
 
     return reward_sites
-    ## ------------------------------------------------------------------------- ##
+## ------------------------------------------------------------------------- ##
 
 def parse_data_old(data, path):
+    """
+    Parses the data and extracts relevant information for analysis.
 
+    Args:
+        data (dict): The data dictionary containing the raw data.
+        path (str): The path to the data files.
+
+    Returns:
+        pd.DataFrame: The parsed data in a pandas DataFrame format.
+    """
     try:
         ## Load data from encoder efficiently
         data['harp_behavior'].streams.AnalogData.load_from_file()
@@ -479,6 +505,7 @@ def parse_data_old(data, path):
         reward_sites['reward_available'] = 100
         
     return reward_sites, active_site, encoder_data, config
+## ------------------------------------------------------------------------- ##
 
 def parse_data(data: pd.DataFrame):
     '''
@@ -495,6 +522,8 @@ def parse_data(data: pd.DataFrame):
         Dataframe with the active sites (Reward, interpatch and intersite instantiations)
     encoder_data: pd.DataFrame
         Dataframe with the rotary encoder data
+    config: pd.DataFrame
+        Dataframe with the configuration data
         
     '''
     ## Load data from encoder efficiently
@@ -685,6 +714,7 @@ def parse_data(data: pd.DataFrame):
     encoder_data = analysis.fir_filter(encoder_data, 5)
 
     return reward_sites, active_site, encoder_data, data['config']
+## ------------------------------------------------------------------------- ##
 
 def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000/2.):
 
@@ -703,6 +733,7 @@ def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000/2.):
     data["filtered_velocity"] = lfilter(fir_coeff, 1.0, data["velocity"].values)
     
     return data
+## ------------------------------------------------------------------------- ##
 
 def choose_cut(reward_sites: pd.DataFrame, number_skipped: int = 20):
     '''
