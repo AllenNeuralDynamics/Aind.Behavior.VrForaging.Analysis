@@ -463,7 +463,7 @@ def velocity_traces_odor_summary(trial_summary, config, mouse, session, window: 
     
     plt.close(fig)
 
-def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mouse: str, session: str, aligned: str=None, window: tuple=(-0.5, 2)):
+def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mouse: str, session: str, aligned: str=None, window: tuple=(-0.5, 2), taken_col: str='filtered_velocity'):
     '''
     Crop the snippets of speed traces that are aligned to different epochs
     
@@ -493,10 +493,10 @@ def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mou
     for start_reward, row in reward_sites.iterrows():
         trial_average = pd.DataFrame()
         if aligned is not None:
-            trial = encoder_data.loc[row[aligned] + window[0]: row[aligned] + window[1], 'filtered_velocity']
+            trial = encoder_data.loc[row[aligned] + window[0]: row[aligned] + window[1], taken_col]
             trial.index -=  row[aligned]
         else:
-            trial = encoder_data.loc[start_reward + window[0]: start_reward + window[1], 'filtered_velocity']
+            trial = encoder_data.loc[start_reward + window[0]: start_reward + window[1], taken_col]
             trial.index -=  start_reward
         trial_average['speed'] = trial.values
         trial_average['times'] = np.around(trial.index,3)

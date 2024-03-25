@@ -260,7 +260,9 @@ def odor_data_harp_olfactometer(data, reward_sites):
         reward_sites['odor_onset'] = odor_triggers['odor_onset'].values
         reward_sites['odor_offset'] = odor_triggers['odor_offset'].values
     except:
-        print('Odor labels do not match')
+        reward_sites = reward_sites.iloc[:-1]
+        reward_sites['odor_onset'] = odor_triggers['odor_onset'].values
+        reward_sites['odor_offset'] = odor_triggers['odor_offset'].values
 
     return reward_sites
 ## ------------------------------------------------------------------------- ##
@@ -487,17 +489,17 @@ def parse_data_old(data, path):
     reward_sites.loc[:,'depleted'] = np.where(reward_sites['reward_available'] == 0, 1, 0)
     reward_sites.loc[:,'collected'] = np.where((reward_sites['reward_delivered'] != 0), 1, 0)
 
-    reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
-    reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
-    reward_sites.drop(columns=['next_visit_number'], inplace=True)
+    # reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
+    # reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
+    # reward_sites.drop(columns=['next_visit_number'], inplace=True)
     
-    reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
-    reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
+    # reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
+    # reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
     
-    reward_sites['next_patch'] = reward_sites['active_patch'].shift(1)
-    reward_sites['next_odor'] = reward_sites['odor_label'].shift(1)
-    reward_sites['same_patch'] = np.where((reward_sites['next_patch'] != reward_sites['active_patch'])&(reward_sites['odor_label'] == reward_sites['next_odor'] ), 1, 0)
-    reward_sites.drop(columns=['next_patch', 'next_odor'], inplace=True)
+    # reward_sites['next_patch'] = reward_sites['active_patch'].shift(1)
+    # reward_sites['next_odor'] = reward_sites['odor_label'].shift(1)
+    # reward_sites['same_patch'] = np.where((reward_sites['next_patch'] != reward_sites['active_patch'])&(reward_sites['odor_label'] == reward_sites['next_odor'] ), 1, 0)
+    # reward_sites.drop(columns=['next_patch', 'next_odor'], inplace=True)
     
     encoder_data = analysis.fir_filter(encoder_data, 5)
 
@@ -701,12 +703,12 @@ def parse_data(data: pd.DataFrame):
     reward_sites.loc[:,'depleted'] = np.where(reward_sites['reward_available'] == 0, 1, 0)
     reward_sites.loc[:,'collected'] = np.where((reward_sites['reward_delivered'] != 0), 1, 0)
     
-    reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
-    reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
-    reward_sites.drop(columns=['next_visit_number'], inplace=True)
+    # reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
+    # reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
+    # reward_sites.drop(columns=['next_visit_number'], inplace=True)
 
-    reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
-    reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
+    # reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
+    # reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
         
     if reward_sites.reward_available.max() >= 100:
         reward_sites['reward_available'] = 100
