@@ -92,6 +92,20 @@ class SoftwareEventSource(DataStreamSource):
                 stream.load_from_file()
         self.streams = Streams({stream.name: stream for stream in streams})
 
+class UpdaterEventSource(DataStreamSource):
+    def __init__(self, path: str | PathLike,
+                 name: str | None = None,
+                 file_pattern_matching: str = "*.json",
+                 autoload=True) -> None:
+        super().__init__(path, name, file_pattern_matching, autoload=autoload)
+
+    def populate_streams(self, autoload: bool) -> Streams:
+        streams = [UpdaterEvent(file) for file in self.files]
+        if autoload is True:
+            for stream in streams:
+                stream.load_from_file()
+        self.streams = Streams({stream.name: stream for stream in streams})
+
 
 class HarpSource(DataStreamSource):
     def __init__(self, device: DeviceReader | Unpack[create_reader],
@@ -333,7 +347,7 @@ class SoftwareEvent(DataStream):
     def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
             path=path, **kwargs,
-            data_type=DataStreamType.SOFTWARE_EVENT,
+            data_type=DataStreamType.JSON,
             reader=None,
             parser=None,
             )
@@ -374,6 +388,52 @@ class SoftwareEvent(DataStream):
         ds._data.set_index("Seconds", inplace=True)
         return ds
 
+class UpdaterEvent(DataStream):
+    """Represents a generic updater event."""
+
+    def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
+        super().__init__(
+            path=path, **kwargs,
+            data_type=DataStreamType.JSON,
+            reader=None,
+            parser=None,
+            )
+
+    def _load_single_event(self, value: str) -> None:
+        return json.loads(value)
+
+    def load_from_file(self,
+                       path: Optional[str | PathLike] = None,
+                       force_reload: bool = False) -> None:
+        """Loads the datastream from a file"""
+        force_reload = True if self._data is None else force_reload
+        if force_reload:
+            if path is None:
+                path = self._path
+            with open(path, "r") as f:
+                self._data = pd.DataFrame(
+                    [self._load_single_event(value=event) for event in f.readlines()]
+                    )
+                self._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
+                self._data.set_index("Seconds", inplace=True)
+
+    def json_normalize(self, *args, **kwargs):
+        df = pd.concat([
+            self.data,
+            pd.json_normalize(self._data["data"], args, kwargs).set_index(self.data.index)
+            ], axis=1)
+        return df
+
+    @classmethod
+    def parse(self, value: str, **kwargs) -> pd.DataFrame:
+        """Loads the datastream from a value"""
+        ds = UpdaterEvent(**kwargs)
+        ds._data = pd.DataFrame(
+            [UpdaterEvent._load_single_event(value=line) for line in value.split("\n")]
+            )
+        ds._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
+        ds._data.set_index("Seconds", inplace=True)
+        return ds
 
 class Config(DataStream):
     """Represents a generic Software event."""
