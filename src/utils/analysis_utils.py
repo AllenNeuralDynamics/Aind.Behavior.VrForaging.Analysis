@@ -113,6 +113,7 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
     HarpBehavior = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\device.behavior\device.yml")
     HarpOlfactometer = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\device.olfactometer\device.yml")
     HarpLickometer = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
+    HarpSniffsensor = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
 
     if 'Behavior.harp' in os.listdir(session_path):
         _out_dict["harp_behavior"] = data_io.HarpSource(
@@ -143,6 +144,13 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
             name="lickometer", 
             autoload=False)
         
+    if 'SniffDetector.harp' in os.listdir(session_path):
+        _out_dict["harp_sniffsensor"] = data_io.HarpSource(
+            device=HarpSniffsensor, 
+            path=session_path / "SniffDetector.harp", 
+            name="sniffdetector", 
+            autoload=False)
+        
     _out_dict["software_events"] = data_io.SoftwareEventSource(
         path=session_path / "SoftwareEvents",
         name="software_events",
@@ -167,6 +175,14 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
             autoload=False)
     else:
         pass
+    
+    if 'UpdaterEvents' in os.listdir(session_path):
+        _out_dict["updater_events"] = data_io.UpdaterEventSource(
+            path=session_path / "UpdaterEvents",
+            name="updater_events",
+            autoload=True)
+    else:
+        pass
     return _out_dict
 ## ------------------------------------------------------------------------- ##
 
@@ -189,7 +205,15 @@ def odor_data_harp_olfactometer(data, reward_sites):
     odor0 = False
     odor1 = False
     odor2 = False
-    if 'environment_statistics' in data['config'].streams['TaskLogic'].data:
+    
+    if 'TaskLogic' in data['config'].streams.keys():
+        tasklogic = 'TaskLogic'
+    else:
+        tasklogic = 'tasklogic_input'
+        
+    data['config'].streams[tasklogic].load_from_file()
+    
+    if 'environment_statistics' in data['config'].streams[tasklogic].data:
         environment = 'environment_statistics'
         odor_specifications = 'odor_specification'
         odor_index = 'index'
@@ -198,7 +222,7 @@ def odor_data_harp_olfactometer(data, reward_sites):
         odor_specifications = 'odorSpecifications'
         odor_index = 'odorIndex'
         
-    for patches in data['config'].streams['TaskLogic'].data[environment]['patches']: 
+    for patches in data['config'].streams[tasklogic].data[environment]['patches']: 
         if patches[odor_specifications][odor_index] == 0:
             odor0 = patches['label']
         elif patches[odor_specifications][odor_index] == 1:
@@ -574,15 +598,18 @@ def parse_data(data: pd.DataFrame):
     reward = data['software_events'].streams.GiveReward.data
 
     reward.fillna(0, inplace=True)
-    try:
-        # Old way of obtaining the reward amount
-        reward_available = patches.iloc[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
-    except:
-        try:
-            reward_available = patches.iloc[1]["data"]['reward_specification']['reward_function']['available']['b']
-        except:
-            reward_available = (patches["data"].iloc[1]['reward_specification']['reward_function']['amount']['a'] + 
-            patches["data"].iloc[1]['reward_specification']['reward_function']['amount']['d'])
+
+    if 'patchRewardFunction' in patches.iloc[0]["data"].keys():
+        reward_available = patches.iloc[0]["data"]["patchRewardFunction"]["initialRewardAmount"]
+
+    elif 'reward_specification' in patches.iloc[0]["data"].keys():
+        if 'value' in patches.iloc[0]["data"]['reward_specification']['reward_function']['available'].keys():
+            reward_available = patches.iloc[0]["data"]['reward_specification']['reward_function']['available']['value']
+        elif 'maximum' in patches.iloc[0]["data"]['reward_specification']['reward_function']['available'].keys():
+            reward_available = patches.iloc[0]["data"]['reward_specification']['reward_function']['available']['maximum']
+        else:
+            reward_available = (patches["data"].iloc[0]['reward_specification']['reward_function']['amount']['a'] + 
+            patches["data"].iloc[0]['reward_specification']['reward_function']['amount']['d'])
         
     reward_updates = pd.concat([patches, reward])
     reward_updates.sort_index(inplace=True)
