@@ -631,9 +631,12 @@ def parse_data(data: pd.DataFrame):
         reward_updates.at[event[0], "current_reward"] = reward_available
         
     for site in reward_sites.itertuples():
-        arg_min, val_min = processing.find_closest(site.Index, reward_updates.index.values, mode="below_zero")
-        reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
-        
+        try:
+            arg_min, val_min = processing.find_closest(site.Index, reward_updates.index.values, mode="below_zero")
+            reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
+        except:
+            reward_sites.loc[site.Index, "reward_available"] = reward_available
+            
     ## ------------------
     
     # Find responses to Reward site
