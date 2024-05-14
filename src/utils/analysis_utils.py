@@ -110,10 +110,10 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
     # HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
     # HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")
 
-    HarpBehavior = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\device.behavior\device.yml")
-    HarpOlfactometer = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\device.olfactometer\device.yml")
-    HarpLickometer = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
-    HarpSniffsensor = create_reader(device = r"C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
+    HarpBehavior = create_reader(device = r"C:\git\harp-tech\device.behavior\device.yml")
+    HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
+    HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
+    HarpSniffsensor = create_reader(device = r"C:\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
 
     if 'Behavior.harp' in os.listdir(session_path):
         _out_dict["harp_behavior"] = data_io.HarpSource(
@@ -185,6 +185,110 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
         pass
     return _out_dict
 ## ------------------------------------------------------------------------- ##
+def add_time_previous_intersite_interpatch(reward_sites, active_site):
+    
+    all_epochs = pd.concat([reward_sites, active_site.loc[active_site.label != 'RewardSite']])
+    all_epochs.sort_index(inplace=True)
+
+    active_patch = -1
+    total_sites = -1
+    time_interpatch = 0
+    time_intersite = 0
+    for i, row in all_epochs.iterrows():
+        if row['label'] == 'InterPatch':
+            active_patch += 1
+            time_interpatch = i
+        if row['label'] == 'InterSite':
+            total_sites += 1
+            time_intersite = i
+        if row['label'] == 'RewardSite':
+            if row['visit_number'] == 0:
+                all_epochs.at[i, 'previous_interpatch'] = time_interpatch
+                all_epochs.at[i, 'previous_intersite'] = time_intersite
+            else:
+                all_epochs.at[i, 'previous_intersite'] = time_intersite
+        all_epochs.at[i, 'active_patch'] = active_patch
+        all_epochs.at[i, 'sites'] = total_sites
+    all_epochs['sites'] = np.where(all_epochs['sites'] == -1, 0, all_epochs['sites'])
+    total_epochs  = all_epochs.copy()
+    reward_sites = total_epochs.loc[total_epochs.label == 'RewardSite']
+    
+    return reward_sites, total_epochs
+
+
+def add_success_number(reward_sites, data):
+    if 'TaskLogic' in data['config'].streams.keys():
+        tasklogic = 'TaskLogic'
+    else:
+        tasklogic = 'tasklogic_input'
+        
+    data['config'].streams[tasklogic].load_from_file()
+
+    if 'environment_statistics' in data['config'].streams[tasklogic].data:
+        environment = 'environment_statistics'
+        reward_specification = 'reward_specification'
+    else:
+        environment = 'environmentStatistics'
+        reward_specification = 'rewardSpecifications'
+        
+    previous_patch = -1
+    total_success = 0
+    skipped_count = 0   
+    
+    for index, row in reward_sites.iterrows():
+        # Total number of rewards in the current patch ( accumulated)
+        if row['active_patch'] != previous_patch:
+            previous_patch = row['active_patch']
+            total_success = 0
+            
+        reward_sites.loc[index, 'success_number'] = total_success
+        
+        if row['reward_delivered'] != 0:
+            total_success+=1
+            
+        # Number of first sites without stopping - useful for filtering disengagement
+        if row['has_choice'] == False and row['visit_number'] == 0:
+            skipped_count+=1
+        elif row['has_choice'] == True:
+            skipped_count = 0
+        reward_sites.loc[index, 'skipped_count'] = skipped_count
+
+    for patches in data['config'].streams[tasklogic].data[environment]['patches']:
+        try:
+            if patches['reward_specification']['reward_function']['amount']['value'] == 0:
+                no_reward_odor = patches['label']
+        except:
+            pass
+        
+    # Create a curve for how the reward amount changes in time and create a column with the current value
+    x = np.linspace(0, 100, 101)  # Generate 100 points between 0 and 5
+    dict_odor = {}
+
+    for patches in data['config'].streams[tasklogic].data[environment]['patches']:
+        if 'reward_function' not in patches[reward_specification]:
+            dict_odor[patches['label']] = np.repeat(patches[reward_specification]['amount'], 100)
+            continue
+        
+        if patches[reward_specification]['reward_function']['amount']['function_type'] == 'ConstantFunction':
+            odor_label = patches['label']
+            y = np.repeat(patches[reward_specification]['reward_function']['amount']['value'], 50)
+        else:
+
+            odor_label = patches['label']
+            a = patches[reward_specification]['reward_function']['amount']['a']
+            b = patches[reward_specification]['reward_function']['amount']['b']
+            c = -patches[reward_specification]['reward_function']['amount']['c']
+            d = patches[reward_specification]['reward_function']['amount']['d']
+
+            # Generate x values
+            y = a * pow(b, -c * x) + d
+        
+        dict_odor[odor_label] = y
+        
+    for index, row in reward_sites.iterrows():
+        reward_sites.at[index, 'reward_amount'] = np.around(dict_odor[row['odor_label']][int(row['success_number'])],3)
+        
+    return reward_sites
 
 def odor_data_harp_olfactometer(data, reward_sites):
     """
@@ -288,9 +392,18 @@ def odor_data_harp_olfactometer(data, reward_sites):
         reward_sites['odor_onset'] = odor_triggers['odor_onset'].values
         reward_sites['odor_offset'] = odor_triggers['odor_offset'].values
 
+    # -------------------------------- Add previous and next site information ---------------------
+    index = reward_sites.index[1:].tolist()
+    index.append(0)
+    reward_sites['next_odor'] = index
+
+    index = reward_sites['odor_offset'].iloc[:-1].tolist()
+    index.insert(0, 0)
+    reward_sites['previous_odor'] = index
+    
     return reward_sites
 ## ------------------------------------------------------------------------- ##
-
+        
 def parse_data_old(data, path):
     """
     Parses the data and extracts relevant information for analysis.
@@ -571,7 +684,6 @@ def parse_data(data: pd.DataFrame):
     # Reindex the seconds so they are aligned to beginning of the session
     start_time = encoder_data.index[0]
 
-
     # Get the first odor onset per reward site
     data['software_events'].streams.ActiveSite.load_from_file()
     active_site = data['software_events'].streams.ActiveSite.data
@@ -739,7 +851,36 @@ def parse_data(data: pd.DataFrame):
 
     # reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
     # reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
-        
+    
+    #  -------------------------  Add the interpatch and intersite previous times in the site dataframe
+    
+    reward_sites, active_site = add_time_previous_intersite_interpatch(reward_sites, active_site)
+    
+    # ----------------------------------------------------------------------------------
+    
+    #  -------------------------  Add the probabilities of reward in the reward sites dataframe
+
+    if 'PatchRewardProbability' in data['software_events'].streams.keys():
+        data['software_events'].streams.PatchRewardProbability.load_from_file()
+        preward = data['software_events'].streams.PatchRewardProbability.data['data'].values
+
+        for index, row in reward_sites.iterrows():
+            reward_sites.loc[index, 'reward_probability'] = preward[0]
+            if row['reward_delivered'] == 0 and row['has_choice'] == True:
+                pass
+            elif row['reward_delivered'] == 1 and row['has_choice'] == True:
+                preward = preward[1:]
+            else:
+                preward = preward[1:]
+    
+    # ----------------------------------------------------------------------------------
+    # -------------------------------- Add previous and next site information ---------------------
+
+    reward_sites = add_success_number(reward_sites, data)
+    
+    # ----------------------------------------------------------------------------------
+
+
     if reward_sites.reward_available.max() >= 100:
         reward_sites['reward_available'] = 100
         
