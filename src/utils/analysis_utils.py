@@ -2,6 +2,7 @@ from scipy.signal import lfilter, firwin
 import sys
 sys.path.append('../src/')
 
+import time
 import os
 from typing import Dict
 from os import PathLike
@@ -266,12 +267,12 @@ def add_success_number(reward_sites, data):
 
     for patches in data['config'].streams[tasklogic].data[environment]['patches']:
         if 'reward_function' not in patches[reward_specification]:
-            dict_odor[patches['label']] = np.repeat(patches[reward_specification]['amount'], 100)
+            dict_odor[patches['label']] = np.repeat(patches[reward_specification]['amount'], 500)
             continue
         
         if patches[reward_specification]['reward_function']['amount']['function_type'] == 'ConstantFunction':
             odor_label = patches['label']
-            y = np.repeat(patches[reward_specification]['reward_function']['amount']['value'], 50)
+            y = np.repeat(patches[reward_specification]['reward_function']['amount']['value'], 500)
         else:
 
             odor_label = patches['label']
@@ -284,7 +285,7 @@ def add_success_number(reward_sites, data):
             y = a * pow(b, -c * x) + d
         
         dict_odor[odor_label] = y
-        
+    
     for index, row in reward_sites.iterrows():
         reward_sites.at[index, 'reward_amount'] = np.around(dict_odor[row['odor_label']][int(row['success_number'])],3)
         
@@ -875,9 +876,12 @@ def parse_data(data: pd.DataFrame):
     
     # ----------------------------------------------------------------------------------
     # -------------------------------- Add previous and next site information ---------------------
-
+    start_time = time.time()  # Record the start time
     reward_sites = add_success_number(reward_sites, data)
-    
+    end_time = time.time()  # Record the end time
+
+    execution_time = end_time - start_time
+    print(execution_time)
     # ----------------------------------------------------------------------------------
 
 
