@@ -243,9 +243,12 @@ def add_success_number(reward_sites, data):
             total_success = 0
             
         reward_sites.loc[index, 'success_number'] = total_success
-        
+
         if row['reward_delivered'] != 0:
             total_success+=1
+            
+        reward_sites.loc[index, 'patch_success_number'] = total_success
+
             
         # Number of first sites without stopping - useful for filtering disengagement
         if row['has_choice'] == False and row['visit_number'] == 0:
@@ -846,12 +849,12 @@ def parse_data(data: pd.DataFrame):
     reward_sites.loc[:,'depleted'] = np.where(reward_sites['reward_available'] == 0, 1, 0)
     reward_sites.loc[:,'collected'] = np.where((reward_sites['reward_delivered'] != 0), 1, 0)
     
-    # reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
-    # reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
-    # reward_sites.drop(columns=['next_visit_number'], inplace=True)
+    reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
+    reward_sites['last_visit'] = np.where((reward_sites['next_visit_number']==0)&(reward_sites['has_choice']==True), 1, 0)
+    reward_sites.drop(columns=['next_visit_number'], inplace=True)
 
-    # reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
-    # reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
+    reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
+    reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
     
     #  -------------------------  Add the interpatch and intersite previous times in the site dataframe
     
