@@ -17,6 +17,8 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator, FixedLocator
 # Data processing toold
 import pandas as pd
 import numpy as np
+import timeit
+
 
 def format_func(value, tick_number):
     return f"{value:.0f}"
