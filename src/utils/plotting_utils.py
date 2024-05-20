@@ -17,6 +17,8 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator, FixedLocator
 # Data processing toold
 import pandas as pd
 import numpy as np
+import timeit
+
 
 def format_func(value, tick_number):
     return f"{value:.0f}"
@@ -463,16 +465,16 @@ def velocity_traces_odor_summary(trial_summary, config, mouse, session, window: 
     
     plt.close(fig)
 
-def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mouse: str, session: str, aligned: str=None, window: tuple=(-0.5, 2), taken_col: str='filtered_velocity'):
+def trial_collection(reward_sites: pd.DataFrame, continuous_data: pd.DataFrame, mouse: str, session: str, aligned: str=None, window: tuple=(-0.5, 2), taken_col: str='filtered_velocity'):
     '''
     Crop the snippets of speed traces that are aligned to different epochs
     
     Parameters
     ----------
     reward_sites : pd.DataFrame
-        DataFrame containing the reward sites information
-    encoder_data : pd.DataFrame
-        DataFrame containing the encoder data
+        DataFrame containing the reward sites information (odor sites)
+    continuous_data : pd.DataFrame
+        DataFrame containing the continuous data (encoder, sniffing, etc)
     mouse : str
         Mouse name
     session : str
@@ -481,6 +483,8 @@ def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mou
         Column name to align the snippets
     window : tuple
         Time window to crop the snippets
+    taken_col: string
+        name of the column that you want to segment the data from. Default is 'filtered_velocity'        
         
     Returns
     -------
@@ -489,22 +493,35 @@ def trial_collection(reward_sites: pd.DataFrame, encoder_data: pd.DataFrame, mou
         
         '''
     trial_summary = pd.DataFrame()
-        
+    
+    # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values. 
+    # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site. 
     for start_reward, row in reward_sites.iterrows():
+        start = timeit.timeit()
+        print(start_reward)
         trial_average = pd.DataFrame()
         if aligned is not None:
-            trial = encoder_data.loc[row[aligned] + window[0]: row[aligned] + window[1], taken_col]
+            trial = continuous_data.loc[row[aligned] + window[0]: row[aligned] + window[1], taken_col]
             trial.index -=  row[aligned]
         else:
-            trial = encoder_data.loc[start_reward + window[0]: start_reward + window[1], taken_col]
+            trial = continuous_data.loc[start_reward + window[0]: start_reward + window[1], taken_col]
             trial.index -=  start_reward
-        trial_average['speed'] = trial.values
+            
+        if 'filtered_velocity' in taken_col:
+            trial_average['speed'] = trial.values
+        else:
+            trial_average[taken_col] = trial.values
+            
         trial_average['times'] = np.around(trial.index,3)
         
+        # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
             trial_average[column] = np.repeat(row[column], len(trial.values))
 
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
+        stop = timeit.timeit()
+        print(stop-start)
+        
     trial_summary['mouse'] = mouse
     trial_summary['session'] = session
     return trial_summary
