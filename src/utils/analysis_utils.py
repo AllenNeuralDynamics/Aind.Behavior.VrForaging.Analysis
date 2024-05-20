@@ -216,7 +216,6 @@ def add_time_previous_intersite_interpatch(reward_sites, active_site):
     
     return reward_sites, total_epochs
 
-
 def add_success_number(reward_sites, data):
     if 'TaskLogic' in data['config'].streams.keys():
         tasklogic = 'TaskLogic'
@@ -234,6 +233,7 @@ def add_success_number(reward_sites, data):
         
     previous_patch = -1
     total_success = 0
+    total_fails = 0
     skipped_count = 0   
     
     for index, row in reward_sites.iterrows():
@@ -241,6 +241,7 @@ def add_success_number(reward_sites, data):
         if row['active_patch'] != previous_patch:
             previous_patch = row['active_patch']
             total_success = 0
+            total_fails = 0
             
         reward_sites.loc[index, 'success_number'] = total_success
 
@@ -248,8 +249,12 @@ def add_success_number(reward_sites, data):
             total_success+=1
             
         reward_sites.loc[index, 'patch_success_number'] = total_success
-
             
+        if row['reward_delivered'] == 0 and row['has_choice'] == True:
+            total_fails += 1
+
+        reward_sites.loc[index, 'patch_no_reward_number'] = total_fails
+    
         # Number of first sites without stopping - useful for filtering disengagement
         if row['has_choice'] == False and row['visit_number'] == 0:
             skipped_count+=1
@@ -741,7 +746,7 @@ def parse_data(data: pd.DataFrame):
                 try:
                     reward_available = event[1]["data"]['reward_specification']['reward_function']['available']['b']
                 except:
-                    reward_available = 151
+                    reward_available = 150
         else:
             raise ValueError("Unknown event type")
         reward_updates.at[event[0], "current_reward"] = reward_available
@@ -800,9 +805,9 @@ def parse_data(data: pd.DataFrame):
     reward_sites = pd.merge(reward_sites.reset_index(),df_patch[['odor_label', 'active_patch', 'amount']],  on='active_patch')
 
     # Create new column for adjusted seconds to start of session
-    reward_sites['adj_seconds'] = reward_sites['Seconds'] - start_time
-    reward_sites.index = reward_sites['Seconds']
-    reward_sites.drop(columns=['Seconds'], inplace=True)
+    # reward_sites['adj_seconds'] = reward_sites['Seconds'] - start_time
+    # reward_sites.index = reward_sites['Seconds']
+    # reward_sites.drop(columns=['Seconds'], inplace=True)
 
     try:
         reward_sites = odor_data_harp_olfactometer(data, reward_sites)
