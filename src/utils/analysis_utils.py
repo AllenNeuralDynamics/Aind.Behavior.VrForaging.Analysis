@@ -111,10 +111,17 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
     # HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
     # HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")
 
-    HarpBehavior = create_reader(device = r"C:\git\harp-tech\device.behavior\device.yml")
-    HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
-    HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
-    HarpSniffsensor = create_reader(device = r"C:\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
+    #HarpBehavior = create_reader(device = r"C:\git\harp-tech\device.behavior\device.yml")
+    #HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
+    #HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
+    #HarpSniffsensor = create_reader(device = r"C:\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
+    
+    HarpBehavior = create_reader(device = r"/Users/cindy.poo/Documents/git/harp-tech/device.behavior/device.yml")
+    HarpOlfactometer = create_reader(device = r"/Users/cindy.poo/Documents/git/harp-tech/device.yml")
+    HarpLickometer = create_reader(device = r"/Users/cindy.poo/Documents/git/harp-tech/harp.device.lickety-split/software/bonsai/device.yml")  
+    HarpSniffsensor = create_reader(device = r"/Users/cindy.poo/Documents/git/harp-tech/harp.device.sniff-detector/software/bonsai/device.yml")  
+ 
+
 
     if 'Behavior.harp' in os.listdir(session_path):
         _out_dict["harp_behavior"] = data_io.HarpSource(
