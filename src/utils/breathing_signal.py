@@ -13,6 +13,7 @@ import seaborn as sns
 from scipy.signal import find_peaks
 from scipy import signal
 from sklearn.preprocessing import MinMaxScaler
+from scipy.signal import butter, filtfilt
 
 def moving_average(data, window_size):
     '''
@@ -122,7 +123,6 @@ def findpeaks_and_plot(data, x, fig, range_plot = [120,121], color='black', heig
     
     return df_peaks
 
-
 def plot_FFT(data, sampling_rate = 1000, color='black', label='test'):
     
     # Compute power spectrum for sensor
@@ -140,3 +140,18 @@ def plot_FFT(data, sampling_rate = 1000, color='black', label='test'):
     plt.ylabel('Power Spectrum')
     plt.title('Power Spectrum of the Signal')
     plt.xlim(-0.01,100)
+
+# Define a high-pass filter
+def highpass_filter(data, cutoff_freq, fs, order=5):
+    nyquist_freq = 0.5 * fs
+    normal_cutoff = cutoff_freq / nyquist_freq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    filtered_data = filtfilt(b, a, data)
+    return filtered_data
+
+def lowpass_filter(data, cutoff_freq, fs, order=5):
+    nyquist_freq = 0.5 * fs
+    normal_cutoff = cutoff_freq / nyquist_freq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    filtered_data = filtfilt(b, a, data)
+    return filtered_data
