@@ -3,10 +3,6 @@ from math import e
 import sys
 sys.path.append('../src/')
 
-from utils import breathing_signal as lib
-from utils import analysis_utils as analysis
-from utils import processing
-
 # Plotting libraries
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -17,8 +13,6 @@ from matplotlib.ticker import FuncFormatter, MaxNLocator, FixedLocator
 # Data processing toold
 import pandas as pd
 import numpy as np
-import timeit
-
 
 def format_func(value, tick_number):
     return f"{value:.0f}"
@@ -297,14 +291,14 @@ def speed_traces_available(trial_summary, mouse, session, config, window = (-1, 
                 palette_dict = choose_palette(odor_label, trial_summary.loc[(trial_summary.odor_label == odor_label)], config)
 
                 df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.has_choice == i)]
-                            .groupby(['reward_available','total_sites','times','amount'])[['speed']].mean().reset_index())
+                            .groupby(['reward_available','odor_sites','times','amount'])[['speed']].mean().reset_index())
                 
                 if df_results.empty:
                     continue
                             
                 sns.lineplot(x='times', y='speed', data=df_results, hue='reward_available',  palette=palette_dict, ci=None,legend=False, ax= ax1[i+2])   
-                for site in df_results.total_sites.unique():
-                    plot_df = df_results.loc[df_results.total_sites==site]
+                for site in df_results.odor_sites.unique():
+                    plot_df = df_results.loc[df_results.odor_sites==site]
                     sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_available'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[i])  
                     
             else:
@@ -312,14 +306,14 @@ def speed_traces_available(trial_summary, mouse, session, config, window = (-1, 
                 palette_dict = dict(zip(sorted(trial_summary.reward_delivered.unique()), colors_reward))
                 
                 df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.has_choice == i)]
-                        .groupby(['reward_delivered','total_sites','times'])[['speed']].mean().reset_index())
+                        .groupby(['reward_delivered','odor_sites','times'])[['speed']].mean().reset_index())
                 
                 if df_results.empty:
                     continue
                             
                 sns.lineplot(x='times', y='speed', data=df_results, hue='reward_delivered',  palette=palette_dict, ci=None,legend=False, ax= ax1[i+2])   
-                for site in df_results.total_sites.unique():
-                    plot_df = df_results.loc[df_results.total_sites==site]
+                for site in df_results.odor_sites.unique():
+                    plot_df = df_results.loc[df_results.odor_sites==site]
                     sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_delivered'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[i])  
                 
             sns.lineplot(x='times', y='speed', data=df_results, color=colors[i], palette=palette_dict, ci=('sd'), ax= ax1[4])      
@@ -366,7 +360,7 @@ def speed_traces_efficient(trial_summary: pd.DataFrame, mouse, session, odor: st
             ax[j][2].hlines(5, window[0], window[1], color='black', linewidth=1, linestyles=':')
 
     for collected_label in [0, 1]:
-        for i, selected_trials in trial_summary.loc[trial_summary.has_choice == collected_label].groupby('total_sites'):
+        for i, selected_trials in trial_summary.loc[trial_summary.has_choice == collected_label].groupby('odor_sites'):
             ax[0][collected_label].plot('times','speed', data=selected_trials, color='black', alpha=0.3, linewidth=0.5)
 
         selected_trials = trial_summary.loc[trial_summary.has_choice == collected_label].groupby('times')['speed'].mean().reset_index()
@@ -381,7 +375,7 @@ def speed_traces_efficient(trial_summary: pd.DataFrame, mouse, session, odor: st
         
     # ---------- water collection or not
         plot_df = trial_summary.loc[(trial_summary.collected == collected_label)&(trial_summary.has_choice == 1)]
-        for i, selected_trials in plot_df.groupby('total_sites'):
+        for i, selected_trials in plot_df.groupby('odor_sites'):
             ax[1][collected_label].plot('times','speed', data=selected_trials, color='black', alpha=0.3, linewidth=0.5)
 
         selected_trials = plot_df.groupby('times')['speed'].mean().reset_index()
@@ -396,7 +390,7 @@ def speed_traces_efficient(trial_summary: pd.DataFrame, mouse, session, odor: st
         
     # ------------ water depletion or not
         plot_df = trial_summary.loc[(trial_summary.depleted == collected_label)&(trial_summary.has_choice == 1)&(trial_summary.collected == 0)]
-        for i, selected_trials in plot_df.groupby('total_sites'):
+        for i, selected_trials in plot_df.groupby('odor_sites'):
             ax[2][collected_label].plot('times','speed', data=selected_trials, color='black', alpha=0.3, linewidth=0.5)
 
         selected_trials = plot_df.groupby('times')['speed'].mean().reset_index()
@@ -440,13 +434,13 @@ def velocity_traces_odor_summary(trial_summary, config, mouse, session, window: 
         ax.fill_betweenx(np.arange(-10,max_range,0.1), 0, window[1], color=colors_odors[j], alpha=.3, linewidth=0)
         
         df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.visit_number == 0)]
-                    .groupby(['total_sites','times'])[['speed']].mean().reset_index())
+                    .groupby(['odor_sites','times'])[['speed']].mean().reset_index())
         
         if df_results.empty:
             continue
         
-        for site in df_results.total_sites.unique():
-            plot_df = df_results.loc[df_results.total_sites==site]
+        for site in df_results.odor_sites.unique():
+            plot_df = df_results.loc[df_results.odor_sites==site]
             sns.lineplot(x='times', y='speed', data=plot_df, color='black', legend=False, linewidth=0.5, alpha=0.5, ax=ax)  
         
         if mean:
@@ -497,8 +491,6 @@ def trial_collection(reward_sites: pd.DataFrame, continuous_data: pd.DataFrame, 
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values. 
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site. 
     for start_reward, row in reward_sites.iterrows():
-        start = timeit.timeit()
-        print(start_reward)
         trial_average = pd.DataFrame()
         if aligned is not None:
             trial = continuous_data.loc[row[aligned] + window[0]: row[aligned] + window[1], taken_col]
@@ -519,8 +511,6 @@ def trial_collection(reward_sites: pd.DataFrame, continuous_data: pd.DataFrame, 
             trial_average[column] = np.repeat(row[column], len(trial.values))
 
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
-        stop = timeit.timeit()
-        print(stop-start)
         
     trial_summary['mouse'] = mouse
     trial_summary['session'] = session
@@ -770,3 +760,88 @@ def length_distributions(active_site: pd.DataFrame, data, delay: bool=False, sav
         plt.close(fig)
     else:
         plt.show()
+
+def raster_plot(x_start, pdf):
+    fig, axs = plt.subplots(1,1, figsize=(20,4))
+    
+    _legend = {}
+    for idx, site in enumerate(sites.iloc[:-1].iterrows()):
+        site_label = site[1]['data']["label"]
+        if site_label == "Reward":
+            site_label = f"Odor {site[1]['data']['odor']['index']+1}"
+            facecolor = label_dict[site_label]
+        elif site_label == "RewardSite":
+            site_label = f"Odor {site[1]['data']['odor_specification']['index']+1}"
+            facecolor = label_dict[site_label]
+        elif site_label == "InterPatch":
+            facecolor = label_dict[site_label]
+        else:
+            site_label = "InterSite"
+            facecolor = label_dict["InterSite"]
+
+        p = Rectangle(
+            (sites.index[idx] - zero_index, -2), sites.index[idx+1] - sites.index[idx], 8,
+            linewidth = 0, facecolor = facecolor, alpha = .5)
+        _legend[site_label] = p
+        axs.add_patch(p)
+
+    s, lw = 400, 2
+    # Plotting raster
+    y_idx = -0.4
+    _legend["Choice Tone"] = axs.scatter(choice_feedback.index - zero_index+0.2,
+            choice_feedback.index * 0 + y_idx,
+            marker="s", s=100, lw=lw, c='darkblue',
+            label="Choice Tone")
+    y_idx += 1
+    _legend["Lick"] = axs.scatter(lick_onset.index - zero_index,
+            lick_onset.index * 0 + y_idx,
+            marker="|", s=s, lw=lw, c='k',
+            label="Lick")
+    _legend["Reward"] = axs.scatter(give_reward.index - zero_index,
+            give_reward.index*0 + y_idx,
+            marker=".", s=s, lw=lw, c='deepskyblue',
+            label="Reward")
+    _legend["Waits"] = axs.scatter(succesfullwait.index - zero_index,
+        succesfullwait.index*0 + 1.2,
+        marker=".", s=s, lw=lw, c='green',
+        label="Reward")
+    
+    # _legend["Odor_on"] = axs.scatter(odor_on - zero_index,
+    #     odor_on*0 + 2.5,
+    #     marker="|", s=s, lw=lw, c='pink',
+    #     label="ON")
+    
+    # _legend["Odor_off"] = axs.scatter(odor_off - zero_index,
+    #     odor_off*0 + 2.5,
+    #     marker="|", s=s, lw=lw, c='purple',
+    #     label="ON")
+    
+    y_idx += 1
+
+    #ax.set_xticks(np.arange(0, sites.index[-1] - zero_index, 10))
+    axs.set_yticklabels([])
+    axs.set_xlabel("Time(s)")
+    axs.set_ylim(bottom=-1, top = 3)
+    axs.grid(False)
+    plt.gca().yaxis.set_visible(False)
+
+    ax2 = axs.twinx()
+    _legend["Velocity"] = ax2.plot(encoder_data.index - zero_index, encoder_data.filtered_velocity, c="k", label="Encoder", alpha = 0.8)[0]
+    try:
+        v_thr = config.streams.TaskLogic.data["operationControl"]["positionControl"]["stopResponseConfig"]["velocityThreshold"]
+    except:
+        v_thr = 8
+    _legend["Stop Threshold"] = ax2.plot(ax2.get_xlim(), (v_thr, v_thr), c="k", label="Encoder", alpha = 0.5, lw = 2, ls = "--")[0]
+    ax2.grid(False)
+    ax2.set_ylim((-5, 70))
+    ax2.set_ylabel("Velocity (cm/s)")
+    
+    axs.legend(_legend.values(), _legend.keys(), bbox_to_anchor=(1.05, 0.5), loc='center left', borderaxespad=0.)
+    axs.set_xlabel("Time(s)")
+    axs.grid(False)
+    axs.set_ylim(bottom=-1, top = 4)
+    axs.set_yticks([0,3])
+    axs.yaxis.tick_right()
+    axs.set_xlim([x_start, x_start + 80])
+    pdf.savefig(fig, bbox_inches='tight')
+    plt.close(fig)    
