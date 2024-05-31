@@ -1,9 +1,10 @@
+import os
+
 import pandas as pd
 import numpy as np
 from numpy.typing import ArrayLike
 from typing import Literal, Tuple
-
-
+from scipy.signal import lfilter, firwin
 def distinct_until_changed_state(onset_event: pd.DataFrame,
                                  offset_event: pd.DataFrame,
                                  flag: None) -> pd.DataFrame:
@@ -27,9 +28,99 @@ def distinct_until_changed_state(onset_event: pd.DataFrame,
     state = state.loc[state["Value"] - state["Value"].shift(1) != 0, :]
     return state
 
-
 find_closest_modes = Literal["closest", "above_zero", "below_zero"]
 
+def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000/2.):
+
+    '''  
+    Create a FIR filter and apply it to signal.
+    
+    nyq_rate (int) = The Nyquist rate of the signal.
+    cutoff_hz (float) = The cutoff frequency of the filter: 5KHz
+    numtaps (int) = Length of the filter (number of coefficients, i.e. the filter order + 1)
+    '''
+    
+    # Use firwin to create a lowpass FIR filter
+    fir_coeff = firwin(num_taps, cutoff_hz/nyq_rate)
+
+    # Use lfilter to filter the signal with the FIR filter
+    data["filtered_velocity"] = lfilter(fir_coeff, 1.0, data["velocity"].values)
+    
+    return data
+## ------------------------------------------------------------------------- ##
+
+## ------------------------------------------------------------------------- ##
+def compute_window(data, runningwindow,option, trial):
+    """
+    Computes a rolling average with a length of runningwindow samples.
+    """
+    performance = []
+    end=False
+    for i in range(len(data)):
+        if data[trial].iloc[i] <= runningwindow:
+            # Store the first index of that session
+            if end == False:
+                start=i
+                end=True
+            performance.append(round(np.mean(data[option].iloc[start:i + 1]), 2))
+        else:
+            end=False
+            performance.append(round(np.mean(data[option].iloc[i - runningwindow:i]), 2))
+    return performance
+## ------------------------------------------------------------------------- ##
+
+def choose_cut(reward_sites: pd.DataFrame, number_skipped: int = 20):
+    '''
+    Choose the cut of the session based on the number of skipped sites
+    
+    Inputs:
+    reward_sites: pd.DataFrame
+        Dataframe with the reward sites
+    number_skipped: int
+        Number of skipped sites to choose the cut
+        
+    Returns:
+    int
+        The cut value of the session
+        
+    '''
+    
+    cumulative = 0
+    for row,i in enumerate(reward_sites.has_choice):
+        if int(i) == 0:
+            cumulative += 1
+        else:
+            cumulative = 0
+        
+        if cumulative == number_skipped:
+            return reward_sites.iloc[row].active_patch
+        
+    return max(reward_sites.active_patch)
+
+def find_file(start_dir: str, filename_part: str):
+    '''
+    Find a file in a directory
+    
+    Inputs:
+    start_dir: str
+        The directory to start the search. It doesn't go deeper from the first folder
+    filename_part: str
+        The part of the filename to search. This can be a substring of the filename
+        
+    Returns:
+        str
+            The full path of the file
+    '''
+    for filename in os.listdir(start_dir):
+        if filename_part in filename:
+            return os.path.join(start_dir, filename)
+        
+# Define exponential function
+def exponential_func(x, a, b):
+    return a * np.exp(b * x)
+
+def format_func(value, tick_number):
+    return f"{value:.0f}"
 
 def find_closest(query: float,
                  array: ArrayLike,
