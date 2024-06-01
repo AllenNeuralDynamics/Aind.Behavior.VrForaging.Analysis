@@ -49,6 +49,7 @@ class ContinuousData:
             self.lick_onset = self.lick_onset_loading()
             self.give_reward, self.pulse_duration, self.valve_output_pulse = self.water_valve_loading()
             # self.succesful_wait = self.succesfull_wait_loading()
+            self.sniff_data_loading()
 
     def encoder_loading(self):
         ## Load data from encoder efficiently
