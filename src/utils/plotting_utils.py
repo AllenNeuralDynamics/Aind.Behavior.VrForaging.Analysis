@@ -115,8 +115,8 @@ def speed_traces_epochs(reward_sites, inter_site, inter_patch, encoder_data, mea
             if single:
                 ax[j].plot(trial.index, trial.values, color=colors_reward[int(row['reward_available'])], linewidth=0.5, alpha=0.5)
       
-        trial_summary['mouse'] = mouse
-        trial_summary['session'] = session
+        trial_summary['mouse'] = reward_sites['mouse'].values[0]
+        trial_summary['session'] = reward_sites['session'].values[0]
         
         if mean:
             sns.lineplot(data=trial_summary.loc[trial_summary.label == dataframe.label.unique()[0]], hue='reward_available', x='times', y='speed', ax=ax[j], legend=False, ci=None, palette=colors_reward, linewidth=2)
