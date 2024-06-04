@@ -245,6 +245,12 @@ def segmented_raster_vertical(reward_sites: pd.DataFrame,
     plt.legend(handles=odors, loc='lower right', bbox_to_anchor=(0.95, -1.25), fontsize=12, ncol=3)
     sns.despine()
     
+    if save != False:
+        save.savefig(fig, bbox_inches='tight')
+    else:
+        plt.show()
+    plt.close(fig)
+    
 def speed_traces_available(trial_summary, mouse, session, config, window = (-1, 3), save=False):
     n_odors = len(trial_summary.odor_label.unique())
     fig, ax = plt.subplots(n_odors,5, figsize=(18, len(trial_summary.odor_label.unique())*4), sharex=True, sharey=True)
@@ -400,6 +406,50 @@ def speed_traces_efficient(trial_summary: pd.DataFrame, mouse, session, odor: st
         save.savefig(fig, bbox_inches='tight')
         plt.close(fig)
            
+def preward_estimates(reward_sites, 
+                      minimum_size: int = 2,
+                      color_dict_label: dict = {'Ethyl Butyrate': '#d95f02', 'Alpha-pinene': '#1b9e77', 'Amyl Acetate': '#7570b3'}, 
+                      save: bool =False):
+    
+        summary = reward_sites.groupby(['active_patch','odor_label']).agg({'reward_delivered':'sum','visit_number':'count', 'reward_probability':'min'})
+        summary = summary.loc[summary.visit_number > minimum_size]
+        summary.reset_index(inplace=True)
+
+        fig = plt.figure(figsize=(12,5))
+        ax = plt.subplot(1, 3, 1)
+        sns.boxplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = color_dict_label, order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, showfliers=False, ax =ax)
+        sns.stripplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = ['black', 'black', 'black'], order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
+        plt.xlabel('Odor')
+        plt.ylabel('Total reward \n collected')
+        plt.xticks([0,1],[0.9,0.6])
+        plt.xlabel('Initial P(reward)')
+
+        ax = plt.subplot(1, 3, 2)
+        sns.boxplot(x='odor_label', y='visit_number', hue='odor_label', palette = color_dict_label, order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, showfliers=False, ax =ax)
+        sns.stripplot(x='odor_label', y='visit_number', hue='odor_label', palette = ['black', 'black', 'black'], order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
+
+        plt.xlabel('Odor')
+        plt.ylabel('Total stops')
+        plt.xticks([0,1],[0.9,0.6])
+        plt.xlabel('Initial P(reward)')
+
+        ax = plt.subplot(1, 3, 3)
+        sns.boxplot(x='odor_label', y='reward_probability', hue='odor_label', palette = color_dict_label, order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, showfliers=False, ax =ax)
+        sns.stripplot(x='odor_label', y='reward_probability', hue='odor_label', palette = ['black', 'black', 'black'], order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
+
+        plt.xlabel('Odor')
+        plt.ylabel('P(reward) when leaving')
+        plt.xticks([0,1],[0.9,0.6])
+        plt.xlabel('Initial P(reward)')
+
+        sns.despine()
+        plt.tight_layout()
+
+        if save != False:
+            save.savefig(fig)
+        else:
+            plt.show()
+
 def velocity_traces_odor_summary(trial_summary, 
                                 window: tuple = (-0.5, 2), 
                                 max_range: int = 60, 
