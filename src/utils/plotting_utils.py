@@ -417,16 +417,20 @@ def preward_estimates(reward_sites,
 
         fig = plt.figure(figsize=(12,5))
         ax = plt.subplot(1, 3, 1)
-        sns.boxplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = color_dict_label, order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, showfliers=False, ax =ax)
-        sns.stripplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = ['black', 'black', 'black'], order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
+        sns.boxplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = color_dict_label, 
+                    order= [list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]], data=summary, showfliers=False, ax =ax)
+        sns.stripplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = ['black', 'black', 'black'], 
+                      order= [list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
         plt.xlabel('Odor')
         plt.ylabel('Total reward \n collected')
         plt.xticks([0,1],[0.9,0.6])
         plt.xlabel('Initial P(reward)')
 
         ax = plt.subplot(1, 3, 2)
-        sns.boxplot(x='odor_label', y='visit_number', hue='odor_label', palette = color_dict_label, order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, showfliers=False, ax =ax)
-        sns.stripplot(x='odor_label', y='visit_number', hue='odor_label', palette = ['black', 'black', 'black'], order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
+        sns.boxplot(x='odor_label', y='visit_number', hue='odor_label', palette = color_dict_label, 
+                    order= [list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]], data=summary, showfliers=False, ax =ax)
+        sns.stripplot(x='odor_label', y='visit_number', hue='odor_label', palette = ['black', 'black', 'black'],
+                    order= [list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
 
         plt.xlabel('Odor')
         plt.ylabel('Total stops')
@@ -434,8 +438,10 @@ def preward_estimates(reward_sites,
         plt.xlabel('Initial P(reward)')
 
         ax = plt.subplot(1, 3, 3)
-        sns.boxplot(x='odor_label', y='reward_probability', hue='odor_label', palette = color_dict_label, order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, showfliers=False, ax =ax)
-        sns.stripplot(x='odor_label', y='reward_probability', hue='odor_label', palette = ['black', 'black', 'black'], order= ['Ethyl Butyrate',  'Alpha-pinene'], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
+        sns.boxplot(x='odor_label', y='reward_probability', hue='odor_label', palette = color_dict_label, 
+                    order= [list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]], data=summary, showfliers=False, ax =ax)
+        sns.stripplot(x='odor_label', y='reward_probability', hue='odor_label', palette = ['black', 'black', 'black'], 
+                    order= [list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]], data=summary, ax =ax, linewidth=0.2, edgecolor='black', jitter=0.25)
 
         plt.xlabel('Odor')
         plt.ylabel('P(reward) when leaving')
