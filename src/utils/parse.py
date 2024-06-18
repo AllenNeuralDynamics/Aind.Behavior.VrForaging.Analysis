@@ -341,10 +341,10 @@ def read_harp_bin(file):
 def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
     session_path = Path(session_path)
-    HarpBehavior = create_reader(device = r"C:\git\harp-tech\device.behavior\device.yml")
-    HarpOlfactometer = create_reader(device = r"C:\git\harp-tech\device.olfactometer\device.yml")
-    HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
-    HarpSniffsensor = create_reader(device = r"C:\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
+    HarpBehavior = create_reader(device = r"/Users/nehal.ajmal/Documents/aindproject/harptech/device.behavior/device.yml")
+    HarpOlfactometer = create_reader(device = r"/Users/nehal.ajmal/Documents/aindproject/harptech/device.olfactometer/device.yml")
+    HarpLickometer = create_reader(device = r"/Users/nehal.ajmal/Documents/aindproject/harptech/harp.device.lickety-split/software/bonsai/device.yml")  
+    HarpSniffsensor = create_reader(device = r"/Users/nehal.ajmal/Documents/aindproject/harptech/harp.device.sniff-detector/software/bonsai/device.yml")  
 
     if 'Behavior.harp' in os.listdir(session_path):
         _out_dict["harp_behavior"] = data_io.HarpSource(
