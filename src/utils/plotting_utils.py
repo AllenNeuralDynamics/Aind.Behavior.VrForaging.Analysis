@@ -24,68 +24,47 @@ pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
 
-def choose_palette(odor_label, data, config):
-    if data.amount.iloc[0] == 7:
-        if int(data.reward_available.max()) == 25:  
-            colors_reward=sns.color_palette("RdYlBu", n_colors=5)
-            palette_dict = dict(zip(np.arange(4,32,7), colors_reward))
-            palette_dict[0] = '#d73027'
-        else:
-            colors_reward=['#d73027','#fdae61','#abd9e9','#4575b4']        
-            palette_dict = dict(zip(np.arange(0,28,7), colors_reward))
-    elif data.amount.iloc[0] == 1:
-        if int(data.reward_available.max()) == 3:  
-            colors_reward=['#d73027','#fdae61','#abd9e9','#4575b4']
-            palette_dict = dict(zip(np.arange(0,4,1), colors_reward))
+def choose_palette (trial_summary: pd.DataFrame, 
+                    condition: str = 'reward_available'):
+    """
+    This function assigns a color palette to unique values in a specified column of a DataFrame.
 
-        elif int(data.reward_available.max()) == 10:  
-            colors_reward=sns.color_palette("RdYlBu", n_colors=11)
-            palette_dict = dict(zip(np.arange(0,11,1), colors_reward))
-            
-        elif int(data.reward_available.max()) == 100:
-            palette_dict = {100: '#4575b4'}
-            
-        elif int(data.reward_available.max()) == 0:
-            palette_dict = {0: '#d73027'}
-            
-        else:
-            colors_reward=sns.color_palette("RdYlBu", n_colors=int(data.reward_available.max())+1)
-            palette_dict = dict(zip(np.arange(0,config['environmentStatistics']['patches'][0]['patchRewardFunction']['initialRewardAmount']+1,1), colors_reward))
+    Parameters:
+    trial_summary (pd.DataFrame): The DataFrame to process.
+    condition (str, optional): The column in the DataFrame to assign colors to. Defaults to 'reward_available'.
 
-    elif data.amount.iloc[0] == 5:
-        if data.reward_available.max() == 100:
-            colors_reward=['#4575b4']
-            palette_dict = {100: '#4575b4'}
-        else:
-            colors_reward=sns.color_palette("RdYlBu", n_colors=6)
-            palette_dict = dict(zip(np.arange(0,30,5), colors_reward))
-        
-    elif data.amount.iloc[0] == 3:     
-        if int(data.reward_available.max()) == 25:  
-            colors_reward=sns.color_palette("RdYlBu", n_colors=9)
-            palette_dict = dict(zip(np.arange(1,28,3), colors_reward))
-            palette_dict[0] = '#d73027'
-        else:
-            colors_reward=sns.color_palette("RdYlBu", n_colors=9)
-            palette_dict = dict(zip(np.arange(0,24,3), colors_reward))
-        
-    elif data.amount.iloc[0] == 4:  
-        if int(data.reward_available.max()) == 25: 
-            colors_reward=sns.color_palette("RdYlBu", n_colors=8)
-            palette_dict = dict(zip(np.arange(1,29,4), colors_reward))
-            palette_dict[0] = '#d73027'
-        elif int(data.reward_available.max()) == 50: 
-            colors_reward=sns.color_palette("RdYlBu", n_colors=14)
-            palette_dict = dict(zip(np.arange(2,54,4), colors_reward))
-            palette_dict[0] = '#d73027'
+    Returns:
+    dict: A dictionary where keys are unique values from the 'condition' column and values are corresponding colors.
+    """
+    
+    # Get unique values from the 'condition' column, sorted in ascending order
+    strings = sorted(trial_summary[condition].unique(), reverse=False)
 
-    elif data.amount.iloc[0] == 0:  
-        palette_dict = {0: '#d73027'}
-        
-    else:
-        colors_reward=sns.color_palette("RdYlBu", n_colors=data.reward_delivered.nunique())
-        palette_dict = dict(zip(sorted(data.reward_delivered.unique()), colors_reward))
-    return palette_dict
+    # Create a color palette with as many colors as there are unique values in the 'condition' column
+    palette = sns.color_palette("RdYlBu", n_colors=trial_summary[condition].nunique())
+    
+    # Set the first color to '#bc1626' and the last color to '#3a53a3'
+    palette[0] = '#bc1626'
+    palette[-1] = '#3a53a3'
+
+    def assign_colors_sequential(strings, palette):
+        """
+        This function assigns colors to each unique value in 'strings' in a sequential manner.
+
+        Parameters:
+        strings (list): The list of unique values.
+        palette (list): The list of colors.
+
+        Returns:
+        dict: A dictionary where keys are unique values from 'strings' and values are corresponding colors.
+        """
+        n = len(palette)
+        return {string: palette[i % n] for i, string in enumerate(strings)}
+
+    # Assign colors to unique values
+    assigned_colors = assign_colors_sequential(strings, palette)
+    
+    return assigned_colors
 
 def speed_traces_epochs(reward_sites, inter_site, inter_patch, encoder_data, mean: bool = False, single: bool = True, patch: int = 4, save=False):
     window = [-0.1, 1]  
@@ -251,11 +230,17 @@ def segmented_raster_vertical(reward_sites: pd.DataFrame,
         plt.show()
     plt.close(fig)
     
-def speed_traces_available(trial_summary, mouse, session, config, window = (-1, 3), save=False):
+def speed_traces_value(trial_summary: pd.DataFrame, 
+                       mouse: str, 
+                       session: str, 
+                       condition: str = 'reward_available',
+                       window = (-1, 3), 
+                       save=False):
+    
     n_odors = len(trial_summary.odor_label.unique())
-    fig, ax = plt.subplots(n_odors,5, figsize=(18, len(trial_summary.odor_label.unique())*4), sharex=True, sharey=True)
+    fig, ax = plt.subplots(n_odors, 5, figsize=(18, n_odors*4), sharex=True, sharey=True)
     colors = ['crimson','darkgreen']
-    for j in range(len(trial_summary.odor_label.unique())):
+    for j in range(n_odors):
         if n_odors == 1:
             ax1 = ax
         else:
@@ -274,44 +259,27 @@ def speed_traces_available(trial_summary, mouse, session, config, window = (-1, 
             ax1[i].fill_betweenx(np.arange(-10,80,0.1), window[0],0, color='#808080', alpha=.5, linewidth=0)
 
     for i in trial_summary.has_choice.unique():
+        assigned_colors = choose_palette(trial_summary, condition = condition)
+        
         i = int(i)
         for j, odor_label in enumerate(trial_summary.odor_label.unique()):
             if n_odors == 1:
                 ax1 = ax
             else:
                 ax1 = ax[j]
-            
-            # Choose plot coloring different reward available in site   
-            if trial_summary.reward_available.nunique() != 1:
-                palette_dict = choose_palette(odor_label, trial_summary.loc[(trial_summary.odor_label == odor_label)], config)
 
-                df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.has_choice == i)]
-                            .groupby(['reward_available','odor_sites','times','amount'])[['speed']].mean().reset_index())
+            df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.has_choice == i)]
+                        .groupby([condition,'odor_sites','times'])[['speed']].mean().reset_index())
+            
+            if df_results.empty:
+                continue
+                        
+            sns.lineplot(x='times', y='speed', data=df_results, hue=condition,  palette=assigned_colors, ci=None,legend=False, ax= ax1[i+2])   
+            for site in df_results.odor_sites.unique():
+                plot_df = df_results.loc[df_results.odor_sites==site]
+                sns.lineplot(x='times', y='speed', data=plot_df, color=assigned_colors[plot_df['reward_probability'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[i])  
                 
-                if df_results.empty:
-                    continue
-                            
-                sns.lineplot(x='times', y='speed', data=df_results, hue='reward_available',  palette=palette_dict, ci=None,legend=False, ax= ax1[i+2])   
-                for site in df_results.odor_sites.unique():
-                    plot_df = df_results.loc[df_results.odor_sites==site]
-                    sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_available'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[i])  
-                    
-            else:
-                colors_reward=sns.color_palette("RdYlBu", n_colors=trial_summary.reward_delivered.nunique())
-                palette_dict = dict(zip(sorted(trial_summary.reward_delivered.unique()), colors_reward))
-                
-                df_results = (trial_summary.loc[(trial_summary.odor_label == odor_label)&(trial_summary.has_choice == i)]
-                        .groupby(['reward_delivered','odor_sites','times'])[['speed']].mean().reset_index())
-                
-                if df_results.empty:
-                    continue
-                            
-                sns.lineplot(x='times', y='speed', data=df_results, hue='reward_delivered',  palette=palette_dict, ci=None,legend=False, ax= ax1[i+2])   
-                for site in df_results.odor_sites.unique():
-                    plot_df = df_results.loc[df_results.odor_sites==site]
-                    sns.lineplot(x='times', y='speed', data=plot_df, color=palette_dict[plot_df['reward_delivered'].unique()[0]], legend=False, linewidth=0.5, alpha=0.5, ax=ax1[i])  
-                
-            sns.lineplot(x='times', y='speed', data=df_results, color=colors[i], palette=palette_dict, ci=('sd'), ax= ax1[4])      
+            sns.lineplot(x='times', y='speed', data=df_results, color=colors[i], palette=assigned_colors, ci=('sd'), ax= ax1[4])      
 
             ax1[2].set_title(f'Odor {odor_label} ')
             
@@ -323,7 +291,6 @@ def speed_traces_available(trial_summary, mouse, session, config, window = (-1, 
                 ax1[i+2].text(1.2, 75, f'Not stopped', fontsize=12)
             
     sns.despine()     
-    
     plt.suptitle(mouse +'_' + session)       
     plt.tight_layout()
 
@@ -453,10 +420,12 @@ def preward_estimates(reward_sites,
 
         if save != False:
             save.savefig(fig)
+            plt.close(fig)
         else:
             plt.show()
+            plt.close(fig)
 
-def velocity_traces_odor_summary(trial_summary, 
+def velocity_traces_odor_entry(trial_summary, 
                                 window: tuple = (-0.5, 2), 
                                 max_range: int = 60, 
                                 color_dict_label: dict = {'Ethyl Butyrate': '#d95f02', 'Alpha-pinene': '#1b9e77', 'Amyl Acetate': '#7570b3'},
