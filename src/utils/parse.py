@@ -26,6 +26,48 @@ _payloadtypes = {
                 68 : np.dtype(np.float32)
                 }
 
+class TaskSchemaProperties:
+    """This class is used to store the schema properties of the task configuration.
+    
+        tasklogic (str): The key used to access task logic data in the configuration.
+        environment (str): The key used to access environment statistics in the configuration.
+        reward_specification (str): The key used to access reward specifications in the configuration.
+        odor_specifications (str): The key used to access odor specifications in the configuration.
+        odor_index (str): The key used to access the odor index in the configuration.
+        patches (list): A list of patches in the task configuration.
+    """
+    
+    def __init__(self, 
+                 data):
+        self._data = data
+
+        if 'rig_input' in self._data['config'].streams.keys():
+            self.rig = 'rig_input'
+        else:
+            self.rig = 'Rig'
+        
+        self._data['config'].streams[self.rig].load_from_file()
+
+        if 'TaskLogic' in self._data['config'].streams.keys():
+            self.tasklogic = 'TaskLogic'
+        else:
+            self.tasklogic = 'tasklogic_input'
+            
+        self._data['config'].streams[self.tasklogic].load_from_file()
+
+        if 'environment_statistics' in self._data['config'].streams[self.tasklogic].data:
+            self.environment = 'environment_statistics'
+            self.reward_specification = 'reward_specification'
+            self.odor_specifications = 'odor_specification'
+            self.odor_index = 'index'
+        else:
+            self.environment = 'environmentStatistics'
+            self.reward_specification = 'rewardSpecifications'  
+            self.odor_specifications = 'odorSpecifications'
+            self.odor_index = 'odorIndex' 
+               
+        self.patches = self._data['config'].streams[self.tasklogic].data[self.environment]['patches']
+            
 class ContinuousData:
     def __init__(self, 
                  data, 
@@ -128,9 +170,6 @@ class RewardFunctions:
     Attributes:
         _data (dict): A dictionary containing the task configuration.
         reward_sites (DataFrame): A pandas DataFrame containing the reward sites data.
-        tasklogic (str): The key used to access task logic data in the configuration.
-        environment (str): The key used to access environment statistics in the configuration.
-        reward_specification (str): The key used to access reward specifications in the configuration.
     """
     def __init__(self, 
                  data, 
@@ -146,25 +185,15 @@ class RewardFunctions:
         self._data = data
         self.reward_sites = reward_sites
         
-        if 'TaskLogic' in self._data['config'].streams.keys():
-            self.tasklogic = 'TaskLogic'
-        else:
-            self.tasklogic = 'tasklogic_input'
-            
-        self._data['config'].streams[self.tasklogic].load_from_file()
+        self.schema_properties = TaskSchemaProperties(self._data)
 
-        if 'environment_statistics' in self._data['config'].streams[self.tasklogic].data:
-            self.environment = 'environment_statistics'
-            self.reward_specification = 'reward_specification'
-        else:
-            self.environment = 'environmentStatistics'
-            self.reward_specification = 'rewardSpecifications'   
-            
+    def calculate_reward_functions(self):
         self.add_cumulative_rewards()
         self.reward_amount()
         self.reward_probability()
         self.reward_available()
         self.reward_sites.drop(columns=['cumulative_rewards'], inplace=True)
+        return self.reward_sites
         
     def add_cumulative_rewards(self):
         """
@@ -198,21 +227,21 @@ class RewardFunctions:
         x = np.linspace(0, 500, 501)  # Generate 500 points between 0 and 500
         dict_odor = {}
 
-        for patches in self._data['config'].streams[self.tasklogic].data[self.environment]['patches']:
-            if 'reward_function' not in patches[self.reward_specification]:
-                dict_odor[patches['label']] = np.repeat(patches[self.reward_specification]['amount'], 500)
+        for patches in self.schema_properties.patches:
+            if 'reward_function' not in patches[self.schema_properties.reward_specification]:
+                dict_odor[patches['label']] = np.repeat(patches[self.schema_properties.reward_specification]['amount'], 500)
                 continue
             
-            if patches[self.reward_specification]['reward_function']['amount']['function_type'] == 'ConstantFunction':
+            if patches[self.schema_properties.reward_specification]['reward_function']['amount']['function_type'] == 'ConstantFunction':
                 odor_label = patches['label']
-                y = np.repeat(patches[self.reward_specification]['reward_function']['amount']['value'], 500)
+                y = np.repeat(patches[self.schema_properties.reward_specification]['reward_function']['amount']['value'], 500)
             else:
 
                 odor_label = patches['label']
-                a = patches[self.reward_specification]['reward_function']['amount']['a']
-                b = patches[self.reward_specification]['reward_function']['amount']['b']
-                c = -patches[self.reward_specification]['reward_function']['amount']['c']
-                d = patches[self.reward_specification]['reward_function']['amount']['d']
+                a = patches[self.schema_properties.reward_specification]['reward_function']['amount']['a']
+                b = patches[self.schema_properties.reward_specification]['reward_function']['amount']['b']
+                c = -patches[self.schema_properties.reward_specification]['reward_function']['amount']['c']
+                d = patches[self.schema_properties.reward_specification]['reward_function']['amount']['d']
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -234,21 +263,21 @@ class RewardFunctions:
         x = np.linspace(0, 500, 501)  # Generate 100 points between 0 and 5
         dict_odor = {}
 
-        for patches in self._data['config'].streams[self.tasklogic].data[self.environment]['patches']:
-            if 'reward_function' not in patches[self.reward_specification]:
-                dict_odor[patches['label']] = np.repeat(patches[self.reward_specification]['probability'], 500)
+        for patches in self.schema_properties.patches:
+            if 'reward_function' not in patches[self.schema_properties.reward_specification]:
+                dict_odor[patches['label']] = np.repeat(patches[self.schema_properties.reward_specification]['probability'], 500)
                 continue
             
-            if patches[self.reward_specification]['reward_function']['probability']['function_type'] == 'ConstantFunction':
+            if patches[self.schema_properties.reward_specification]['reward_function']['probability']['function_type'] == 'ConstantFunction':
                 odor_label = patches['label']
-                y = np.repeat(patches[self.reward_specification]['reward_function']['probability']['value'], 500)
+                y = np.repeat(patches[self.schema_properties.reward_specification]['reward_function']['probability']['value'], 500)
             else:
 
                 odor_label = patches['label']
-                a = patches[self.reward_specification]['reward_function']['probability']['a']
-                b = patches[self.reward_specification]['reward_function']['probability']['b']
-                c = -patches[self.reward_specification]['reward_function']['probability']['c']
-                d = patches[self.reward_specification]['reward_function']['probability']['d']
+                a = patches[self.schema_properties.reward_specification]['reward_function']['probability']['a']
+                b = patches[self.schema_properties.reward_specification]['reward_function']['probability']['b']
+                c = -patches[self.schema_properties.reward_specification]['reward_function']['probability']['c']
+                d = patches[self.schema_properties.reward_specification]['reward_function']['probability']['d']
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -271,29 +300,29 @@ class RewardFunctions:
         x = np.linspace(0, 500, 501)  # Generate 100 points between 0 and 5
         dict_odor = {}
 
-        for patches in self._data['config'].streams[self.tasklogic].data[self.environment]['patches']:
+        for patches in self.schema_properties.patches:
             
             # Segment for when the conventions were different. It was always a linear decrease. 
-            if 'reward_function' not in patches[self.reward_specification]:
+            if 'reward_function' not in patches[self.schema_properties.reward_specification]:
                 if patches['patchRewardFunction']['initialRewardAmount'] >=100:
                     dict_odor[patches['label']] = np.repeat(100, 500)
                 else:
                     odor_label = patches['label']
                     initial = patches['patchRewardFunction']['initialRewardAmount']
-                    amount = patches[self.reward_specification]['amount']
+                    amount = patches[self.schema_properties.reward_specification]['amount']
                     y = initial - amount * x
                     dict_odor[odor_label] = y
                 continue
             
-            if patches[self.reward_specification]['reward_function']['probability']['function_type'] == 'ConstantFunction':
+            if patches[self.schema_properties.reward_specification]['reward_function']['probability']['function_type'] == 'ConstantFunction':
                 odor_label = patches['label']
-                y = np.repeat(patches[self.reward_specification]['reward_function']['probability']['value'], 500)
+                y = np.repeat(patches[self.schema_properties.reward_specification]['reward_function']['probability']['value'], 500)
             else:
                 odor_label = patches['label']
-                a = patches[self.reward_specification]['reward_function']['probability']['a']
-                b = patches[self.reward_specification]['reward_function']['probability']['b']
-                c = -patches[self.reward_specification]['reward_function']['probability']['c']
-                d = patches[self.reward_specification]['reward_function']['probability']['d']
+                a = patches[self.schema_properties.reward_specification]['reward_function']['probability']['a']
+                b = patches[self.schema_properties.reward_specification]['reward_function']['probability']['b']
+                c = -patches[self.schema_properties.reward_specification]['reward_function']['probability']['c']
+                d = patches[self.schema_properties.reward_specification]['reward_function']['probability']['d']
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -337,7 +366,6 @@ def read_harp_bin(file):
 
     return ret_pd
 ## ------------------------------------------------------------------------- ##
-
 def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
     session_path = Path(session_path)
@@ -416,7 +444,6 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
         pass
     return _out_dict
 ## ------------------------------------------------------------------------- ##
-
 def odor_data_harp_olfactometer(data, reward_sites):
     """
     Process odor data from the Harp Olfactometer.
@@ -435,31 +462,19 @@ def odor_data_harp_olfactometer(data, reward_sites):
     data['harp_olfactometer'].streams.OdorValveState.load_from_file()
     data['harp_olfactometer'].streams.EndValveState.load_from_file()
 
+    schema_properties = TaskSchemaProperties(data)
+    
     # Assign odor labels to odor indexes
     odor0 = False
     odor1 = False
     odor2 = False
-    
-    if 'TaskLogic' in data['config'].streams.keys():
-        tasklogic = 'TaskLogic'
-    else:
-        tasklogic = 'tasklogic_input'
         
-    data['config'].streams[tasklogic].load_from_file()
+    data['config'].streams[schema_properties.tasklogic].load_from_file()
     
-    if 'environment_statistics' in data['config'].streams[tasklogic].data:
-        environment = 'environment_statistics'
-        odor_specifications = 'odor_specification'
-        odor_index = 'index'
-    else:
-        environment = 'environmentStatistics'
-        odor_specifications = 'odorSpecifications'
-        odor_index = 'odorIndex'
-        
-    for patches in data['config'].streams[tasklogic].data[environment]['patches']: 
-        if patches[odor_specifications][odor_index] == 0:
+    for patches in schema_properties.patches: 
+        if patches[schema_properties.odor_specifications][schema_properties.odor_index] == 0:
             odor0 = patches['label']
-        elif patches[odor_specifications][odor_index] == 1:
+        elif patches[schema_properties.odor_specifications][schema_properties.odor_index] == 1:
             odor1 = patches['label']
         else:
             odor2 = patches['label']
@@ -872,7 +887,7 @@ def parse_dataframe(data: pd.DataFrame):
         pass
     # ---------------------------------------------------- #
     
-    reward_sites = RewardFunctions(data,reward_sites).reward_sites
+    reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
     
     return reward_sites, active_site, data['config']
 
