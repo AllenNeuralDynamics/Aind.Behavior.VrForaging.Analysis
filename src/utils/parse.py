@@ -374,62 +374,67 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
     HarpLickometer = create_reader(device = r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml")  
     HarpSniffsensor = create_reader(device = r"C:\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml")  
 
-    if 'Behavior.harp' in os.listdir(session_path):
+    session_path_behavior = session_path
+    session_path_config = session_path
+    if 'behavior' in os.listdir(session_path): 
+        session_path_behavior = session_path / 'behavior'
+    if "other" in os.listdir(session_path):
+        session_path_config = session_path / 'other'
+        
+    if 'Behavior.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
-            path= session_path / "Behavior.harp",
+            path= session_path_behavior / "Behavior.harp",
             name="behavior",
             autoload=False)
     else:
-        behavior = 0
         print('Old behavior loading')
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
-            path= session_path / "Behavior",
+            path= session_path_behavior / "Behavior",
             name="behavior",
             autoload=False)    
         
-    if 'Olfactometer.harp' in os.listdir(session_path):
+    if 'Olfactometer.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_olfactometer"] = data_io.HarpSource(
             device=HarpOlfactometer, 
-            path=session_path / "Olfactometer.harp", 
+            path=session_path_behavior / "Olfactometer.harp", 
             name="olfactometer", 
             autoload=False)
         
-    if 'Lickometer.harp' in os.listdir(session_path):
+    if 'Lickometer.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_lickometer"] = data_io.HarpSource(
             device=HarpLickometer, 
-            path=session_path / "Lickometer.harp", 
+            path=session_path_behavior / "Lickometer.harp", 
             name="lickometer", 
             autoload=False)
         
-    if 'SniffDetector.harp' in os.listdir(session_path):
+    if 'SniffDetector.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_sniffsensor"] = data_io.HarpSource(
             device=HarpSniffsensor, 
-            path=session_path / "SniffDetector.harp", 
+            path=session_path_behavior / "SniffDetector.harp", 
             name="sniffdetector", 
             autoload=False)
         
     _out_dict["software_events"] = data_io.SoftwareEventSource(
-        path=session_path / "SoftwareEvents",
+        path=session_path_behavior / "SoftwareEvents",
         name="software_events",
         autoload=True)
 
     # Load config old version
-    if 'config.json' in os.listdir(session_path):
-        with open(str(session_path)+'\config.json', 'r') as json_file:
+    if 'config.json' in os.listdir(session_path_config):
+        with open(str(session_path_config)+'\config.json', 'r') as json_file:
             config = json.load(json_file)
             
-    # Load new configuration
     else:
         _out_dict["config"] = data_io.ConfigSource(
-            path=session_path / "Config",
+            path=session_path_config / "Config",
             name="config",
             autoload=True)
     
     if 'OperationControl.harp' in os.listdir(session_path):
         _out_dict["operation_control"] = data_io.OperationControlSource(
-            path=session_path / "OperationControl.harp",
+            path=session_path_behavior / "OperationControl.harp",
             name="operation_control",
             autoload=True)
     else:
@@ -437,13 +442,14 @@ def load_session_data(session_path: str | PathLike) -> Dict[str, data_io.DataStr
     
     if 'UpdaterEvents' in os.listdir(session_path):
         _out_dict["updater_events"] = data_io.UpdaterEventSource(
-            path=session_path / "UpdaterEvents",
+            path=session_path_behavior / "UpdaterEvents",
             name="updater_events",
             autoload=True)
     else:
         pass
     return _out_dict
 ## ------------------------------------------------------------------------- ##
+
 def odor_data_harp_olfactometer(data, reward_sites):
     """
     Process odor data from the Harp Olfactometer.
