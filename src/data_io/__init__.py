@@ -38,8 +38,7 @@ class DataStreamSource:
                  autoload=True,
                  ) -> None:
 
-        if isinstance(path, str):
-            path = Path(path)
+        path = Path(path)
         self._path = path
         if not path.is_dir():
             raise ValueError(f"Path {path} is not a directory")
@@ -234,8 +233,7 @@ class DataStream:
                  parser: Optional[Callable] = None,
                  ) -> None:
         if path:
-            if isinstance(path, str):
-                path = Path(path)
+            path = Path(path)
             self._path = path
             if not path.is_file():
                 raise ValueError(f"Path {path} is not a file")
