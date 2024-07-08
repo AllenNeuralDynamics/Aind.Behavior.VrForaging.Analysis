@@ -107,8 +107,19 @@ class UpdaterEventSource(DataStreamSource):
         self.streams = Streams({stream.name: stream for stream in streams})
 
 
+
+def reader_from_url(device_yml_url: str) -> DeviceReader:
+    """Reads a device from a URL"""
+    """Example: https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"""
+    response = requests.get(device_yml_url)
+    response.raise_for_status()
+    device=create_reader(response.text)
+    device = create_reader(device_yml_url)
+    return device
+
+    
 class HarpSource(DataStreamSource):
-    def __init__(self, device: DeviceReader | Unpack[create_reader],
+    def __init__(self, device: DeviceReader | Dict,
                  path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*",
@@ -388,52 +399,6 @@ class SoftwareEvent(DataStream):
         ds._data.set_index("Seconds", inplace=True)
         return ds
 
-class UpdaterEvent(DataStream):
-    """Represents a generic updater event."""
-
-    def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
-        super().__init__(
-            path=path, **kwargs,
-            data_type=DataStreamType.JSON,
-            reader=None,
-            parser=None,
-            )
-
-    def _load_single_event(self, value: str) -> None:
-        return json.loads(value)
-
-    def load_from_file(self,
-                       path: Optional[str | PathLike] = None,
-                       force_reload: bool = False) -> None:
-        """Loads the datastream from a file"""
-        force_reload = True if self._data is None else force_reload
-        if force_reload:
-            if path is None:
-                path = self._path
-            with open(path, "r") as f:
-                self._data = pd.DataFrame(
-                    [self._load_single_event(value=event) for event in f.readlines()]
-                    )
-                self._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
-                self._data.set_index("Seconds", inplace=True)
-
-    def json_normalize(self, *args, **kwargs):
-        df = pd.concat([
-            self.data,
-            pd.json_normalize(self._data["data"], args, kwargs).set_index(self.data.index)
-            ], axis=1)
-        return df
-
-    @classmethod
-    def parse(self, value: str, **kwargs) -> pd.DataFrame:
-        """Loads the datastream from a value"""
-        ds = UpdaterEvent(**kwargs)
-        ds._data = pd.DataFrame(
-            [UpdaterEvent._load_single_event(value=line) for line in value.split("\n")]
-            )
-        ds._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
-        ds._data.set_index("Seconds", inplace=True)
-        return ds
 
 class Config(DataStream):
     """Represents a generic Software event."""
