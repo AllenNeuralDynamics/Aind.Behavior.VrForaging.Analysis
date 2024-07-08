@@ -4,7 +4,7 @@ import csv
 from typing import Optional, Callable, List, Dict, Unpack
 from os import PathLike
 from enum import Enum
-
+import requests
 from pathlib import Path
 from dotmap import DotMap
 import pandas as pd
@@ -62,7 +62,7 @@ class DataStreamSource:
     def files(self) -> List[Path]:
         return self._files
 
-    def populate_streams(self, autoload) -> Streams:
+    def populate_streams(self, autoload) -> None:
         """Populates the streams attribute with a list of DataStream objects"""
         streams = [DataStream(file) for file in self.files]
         if autoload is True:
@@ -84,27 +84,12 @@ class SoftwareEventSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> Streams:
+    def populate_streams(self, autoload: bool) -> None:
         streams = [SoftwareEvent(file) for file in self.files]
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
         self.streams = Streams({stream.name: stream for stream in streams})
-
-class UpdaterEventSource(DataStreamSource):
-    def __init__(self, path: str | PathLike,
-                 name: str | None = None,
-                 file_pattern_matching: str = "*.json",
-                 autoload=True) -> None:
-        super().__init__(path, name, file_pattern_matching, autoload=autoload)
-
-    def populate_streams(self, autoload: bool) -> Streams:
-        streams = [UpdaterEvent(file) for file in self.files]
-        if autoload is True:
-            for stream in streams:
-                stream.load_from_file()
-        self.streams = Streams({stream.name: stream for stream in streams})
-
 
 
 def reader_from_url(device_yml_url: str) -> DeviceReader:
