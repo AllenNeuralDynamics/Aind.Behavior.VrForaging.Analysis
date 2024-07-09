@@ -25,7 +25,6 @@ _payloadtypes = {
     68: np.dtype(np.float32),
 }
 
-
 class TaskSchemaProperties:
     """This class is used to store the schema properties of the task configuration.
 
@@ -171,13 +170,13 @@ class ContinuousData:
         return self.encoder_data[['Encoder','velocity', 'filtered_velocity']]
 
     def choice_feedback_loading(self):
+        self.data['harp_behavior'].streams.PwmStart.load_from_file()
         if self.current_version < Version("0.3.0"):
             # Find responses to Reward site
-            self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
+            choice_feedback = self.data['harp_behavior'].streams.PwmStart.data.loc[self.data['harp_behavior'].streams.PwmStart.data['PwmDO1'] == True]
         else:
-            self.data["software_events"].streams.ChoiceFeedback.load_from_file()
-            self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
-        return self.choice_feedback
+            choice_feedback = self.data['harp_behavior'].streams.PwmStart.data.loc[self.data['harp_behavior'].streams.PwmStart.data['PwmDO2'] == True]
+        return choice_feedback
 
     def lick_onset_loading(self):
         if "harp_lickometer" in self.data:
@@ -185,13 +184,13 @@ class ContinuousData:
             lick_onset = (
                 self.data["harp_lickometer"].streams.LickState.data["Channel0"] == True
             )
-            self.lick_onset = lick_onset.loc[lick_onset == True]
+            lick_onset = lick_onset.loc[lick_onset == True]
         else:
             di_state = self.data["harp_behavior"].streams.DigitalInputState.data[
                 "DIPort0"
             ]
-            self.lick_onset = di_state.loc[di_state == True]
-        return self.lick_onset
+            lick_onset = di_state.loc[di_state == True]
+        return lick_onset
 
     def water_valve_loading(self):
         # Find give reward event
@@ -1139,8 +1138,7 @@ def parse_dataframe(data: pd.DataFrame):
 
     # Find responses to Reward site
     # Recover tones
-    data["software_events"].streams.ChoiceFeedback.load_from_file()
-    choiceFeedback = data["software_events"].streams.ChoiceFeedback.data
+    choiceFeedback = ContinuousData(data).choice_feedback
 
     # Recover water delivery
     data["harp_behavior"].streams.OutputSet.load_from_file()
@@ -1234,11 +1232,11 @@ def parse_dataframe(data: pd.DataFrame):
     reward_sites.drop(columns=["Seconds"], inplace=True)
 
     # ---------------- Add odor valve trigger times ---------------- #
-    try:
-        reward_sites = odor_data_harp_olfactometer(data, reward_sites)
-    except:
-        print("No olfactometer data - Old system?")
-        pass
+    # try:
+    reward_sites = odor_data_harp_olfactometer(data, reward_sites)
+    # except:
+    #     print("No olfactometer data - Old system?")
+    #     pass
     # ---------------------------------------------------- #
 
     reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
