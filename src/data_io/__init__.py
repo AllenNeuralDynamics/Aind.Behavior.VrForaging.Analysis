@@ -1,15 +1,17 @@
-
-import json
 import csv
-from typing import Optional, Callable, List, Dict, Unpack
-from os import PathLike
-from enum import Enum
-import requests
-from pathlib import Path
-from dotmap import DotMap
-import pandas as pd
-from harp.reader import DeviceReader, create_reader, read_schema, _ReaderParams, _create_register_parser
 import io
+import json
+from enum import Enum
+from os import PathLike
+from pathlib import Path
+from typing import Callable, Dict, List, Optional
+
+import pandas as pd
+import requests
+from dotmap import DotMap
+from harp.reader import (DeviceReader, _create_register_parser, _ReaderParams,
+                         create_reader, read_schema)
+
 
 # Data stream sources
 class Streams(DotMap):
@@ -30,12 +32,14 @@ class Streams(DotMap):
 class DataStreamSource:
     """Represents a datastream source, usually comprised of various files from a single folder.
     These folders usually result from a single data acquisition logger"""
-    def __init__(self,
-                 path: str | PathLike,
-                 name: Optional[str] = None,
-                 file_pattern_matching: str = "*",
-                 autoload=True,
-                 ) -> None:
+
+    def __init__(
+        self,
+        path: str | PathLike,
+        name: Optional[str] = None,
+        file_pattern_matching: str = "*",
+        autoload=True,
+    ) -> None:
 
         path = Path(path)
         self._path = path
@@ -77,10 +81,13 @@ class DataStreamSource:
 
 
 class SoftwareEventSource(DataStreamSource):
-    def __init__(self, path: str | PathLike,
-                 name: str | None = None,
-                 file_pattern_matching: str = "*.json",
-                 autoload=True) -> None:
+    def __init__(
+        self,
+        path: str | PathLike,
+        name: str | None = None,
+        file_pattern_matching: str = "*.json",
+        autoload=True,
+    ) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
     def populate_streams(self, autoload: bool) -> None:
@@ -91,7 +98,9 @@ class SoftwareEventSource(DataStreamSource):
         self.streams = Streams({stream.name: stream for stream in streams})
 
 
-def reader_from_url(device_yml_url: str, base_path: Optional[PathLike] = Path(".")) -> DeviceReader:
+def reader_from_url(
+    device_yml_url: str, base_path: Optional[PathLike] = Path(".")
+) -> DeviceReader:
     """Reads a device from a URL"""
     """Example: https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"""
     response = requests.get(device_yml_url)
@@ -107,12 +116,15 @@ def reader_from_url(device_yml_url: str, base_path: Optional[PathLike] = Path(".
 
 
 class HarpSource(DataStreamSource):
-    def __init__(self, device: DeviceReader | Dict,
-                 path: str | PathLike,
-                 name: str | None = None,
-                 file_pattern_matching: str = "*",
-                 autoload=False,
-                 remove_suffix: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        device: DeviceReader | Dict,
+        path: str | PathLike,
+        name: str | None = None,
+        file_pattern_matching: str = "*",
+        autoload=False,
+        remove_suffix: Optional[str] = None,
+    ) -> None:
         if isinstance(device, Dict):
             device = create_reader(**device)
             self._device = device
@@ -129,24 +141,28 @@ class HarpSource(DataStreamSource):
 
     def populate_streams(self, autoload: bool) -> None:
         if self.remove_suffix:
-            streams = [HarpStream(
-                self.device,
-                file,
-                name=file.stem.replace(self.remove_suffix, ""))
-                for file in self.files]
+            streams = [
+                HarpStream(
+                    self.device, file, name=file.stem.replace(self.remove_suffix, "")
+                )
+                for file in self.files
+            ]
         else:
             _inverted_device = self._invert_address_reg_mapping(self.device)
             streams = []
             for file in self.files:
                 try:
-                    streams.append(HarpStream(
-                        self.device,
-                        file,
-                        name=_inverted_device[int(file.stem.split('_')[-1])]))
+                    streams.append(
+                        HarpStream(
+                            self.device,
+                            file,
+                            name=_inverted_device[int(file.stem.split("_")[-1])],
+                        )
+                    )
                 except KeyError:
                     Warning(f"Could not find a register for {file}")
                 except ValueError as e:
-                    if file.stem.split('_')[-1] == "device":
+                    if file.stem.split("_")[-1] == "device":
                         pass
                     else:
                         raise e
@@ -160,12 +176,14 @@ class HarpSource(DataStreamSource):
         return {v.address: k for k, v in device.device.registers.items()}
 
 
-
 class ConfigSource(DataStreamSource):
-    def __init__(self, path: str | PathLike,
-                 name: str | None = None,
-                 file_pattern_matching: str = "*.json",
-                 autoload=True) -> None:
+    def __init__(
+        self,
+        path: str | PathLike,
+        name: str | None = None,
+        file_pattern_matching: str = "*.json",
+        autoload=True,
+    ) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
     def populate_streams(self, autoload: bool) -> None:
@@ -177,20 +195,21 @@ class ConfigSource(DataStreamSource):
 
 
 class OperationControlSource(DataStreamSource):
-    def __init__(self,
-                 path: str | PathLike,
-                 name: str | None = None,
-                 file_pattern_matching: str = "*.csv",
-                 autoload=True) -> None:
+    def __init__(
+        self,
+        path: str | PathLike,
+        name: str | None = None,
+        file_pattern_matching: str = "*.csv",
+        autoload=True,
+    ) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
     def populate_streams(self, autoload: bool) -> None:
         streams: List[DataStream] = []
         for file in self.files:
             streams.append(
-                DataStream(path=file,
-                           data_type=DataStreamType.CSV,
-                           reader=self._loader))
+                DataStream(path=file, data_type=DataStreamType.CSV, reader=self._loader)
+            )
 
         if autoload is True:
             for stream in streams:
@@ -217,11 +236,13 @@ class OperationControlSource(DataStreamSource):
             df = pd.read_csv(path, header=None, index_col=0)
         return df
 
+
 ## Data stream types
 
 
 class DataStreamType(Enum):
     """Represents the available DataStream types"""
+
     NULL = 0
     CUSTOM = 1
     HARP = 2
@@ -233,13 +254,15 @@ class DataStreamType(Enum):
 
 class DataStream:
     """Represents a single datastream file"""
-    def __init__(self,
-                 path: Optional[str | PathLike] = None,
-                 name: Optional[str] = None,
-                 data_type: DataStreamType = DataStreamType.NULL,
-                 reader: Optional[Callable] = None,
-                 parser: Optional[Callable] = None,
-                 ) -> None:
+
+    def __init__(
+        self,
+        path: Optional[str | PathLike] = None,
+        name: Optional[str] = None,
+        data_type: DataStreamType = DataStreamType.NULL,
+        reader: Optional[Callable] = None,
+        parser: Optional[Callable] = None,
+    ) -> None:
         if path:
             path = Path(path)
             self._path = path
@@ -257,9 +280,11 @@ class DataStream:
     @property
     def data(self) -> any:
         if self._data is None:
-            raise ValueError("Data is not loaded. \
+            raise ValueError(
+                "Data is not loaded. \
                              Try self.data(populate=True) to attempt\
-                             to automatically load it")
+                             to automatically load it"
+            )
         return self._data
 
     @property
@@ -278,10 +303,11 @@ class DataStream:
             self._path = Path(self._path)
         return self._path
 
-    def load_from_file(self,
-                       reader: Optional[Callable] = None,
-                       force_reload: bool = False,
-                       ) -> None:
+    def load_from_file(
+        self,
+        reader: Optional[Callable] = None,
+        force_reload: bool = False,
+    ) -> None:
         """Loads the data stream from a file into memory"""
         force_reload = True if self._data is None else force_reload
         if force_reload:
@@ -292,7 +318,8 @@ class DataStream:
             else:
                 raise NotImplementedError(
                     "A valid .load_from_file() method must be implemented,\
-                        or a reader function must be provided")
+                        or a reader function must be provided"
+                )
 
     @classmethod
     def parse(self, value: any, **kwargs):
@@ -304,7 +331,8 @@ class DataStream:
         else:
             raise NotImplementedError(
                 "A valid .parse() method must be implemented,\
-                    or a parse function must be provided")
+                    or a parse function must be provided"
+            )
 
     def __str__(self) -> str:
         if self._data is not None:
@@ -320,27 +348,26 @@ class DataStream:
 
 
 class HarpStream(DataStream):
-    def __init__(self,
-                 device: DeviceReader,
-                 path: Optional[Path] = None, **kwargs):
+    def __init__(self, device: DeviceReader, path: Optional[Path] = None, **kwargs):
         if isinstance(device, DeviceReader):
             self._device = device
         else:
             raise ValueError("device must be a DeviceReader")
         super().__init__(
-            path=path, **kwargs,
+            path=path,
+            **kwargs,
             data_type=DataStreamType.HARP,
             reader=None,
             parser=None,
-            )
+        )
 
     @property
     def device(self) -> DeviceReader:
         return self._device
 
-    def load_from_file(self,
-                       path: Optional[Path] = None,
-                       force_reload: bool = False) -> None:
+    def load_from_file(
+        self, path: Optional[Path] = None, force_reload: bool = False
+    ) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
         if force_reload:
@@ -363,18 +390,19 @@ class SoftwareEvent(DataStream):
 
     def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
-            path=path, **kwargs,
+            path=path,
+            **kwargs,
             data_type=DataStreamType.JSON,
             reader=None,
             parser=None,
-            )
+        )
 
     def _load_single_event(self, value: str) -> None:
         return json.loads(value)
 
-    def load_from_file(self,
-                       path: Optional[str | PathLike] = None,
-                       force_reload: bool = False) -> None:
+    def load_from_file(
+        self, path: Optional[str | PathLike] = None, force_reload: bool = False
+    ) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
         if force_reload:
@@ -383,15 +411,20 @@ class SoftwareEvent(DataStream):
             with open(path, "r") as f:
                 self._data = pd.DataFrame(
                     [self._load_single_event(value=event) for event in f.readlines()]
-                    )
+                )
                 self._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
                 self._data.set_index("Seconds", inplace=True)
 
     def json_normalize(self, *args, **kwargs):
-        df = pd.concat([
-            self.data,
-            pd.json_normalize(self._data["data"], args, kwargs).set_index(self.data.index)
-            ], axis=1)
+        df = pd.concat(
+            [
+                self.data,
+                pd.json_normalize(self._data["data"], args, kwargs).set_index(
+                    self.data.index
+                ),
+            ],
+            axis=1,
+        )
         return df
 
     @classmethod
@@ -400,7 +433,7 @@ class SoftwareEvent(DataStream):
         ds = SoftwareEvent(**kwargs)
         ds._data = pd.DataFrame(
             [SoftwareEvent._load_single_event(value=line) for line in value.split("\n")]
-            )
+        )
         ds._data.rename(columns={"timestamp": "Seconds"}, inplace=True)
         ds._data.set_index("Seconds", inplace=True)
         return ds
@@ -411,15 +444,16 @@ class Config(DataStream):
 
     def __init__(self, path: Optional[str | PathLike] = None, **kwargs):
         super().__init__(
-            path=path, **kwargs,
+            path=path,
+            **kwargs,
             data_type=DataStreamType.JSON,
             reader=None,
             parser=None,
-            )
+        )
 
-    def load_from_file(self,
-                       path: Optional[str | PathLike] = None,
-                       force_reload: bool = False) -> None:
+    def load_from_file(
+        self, path: Optional[str | PathLike] = None, force_reload: bool = False
+    ) -> None:
         """Loads the datastream from a file"""
         force_reload = True if self._data is None else force_reload
         if force_reload:
@@ -434,4 +468,3 @@ class Config(DataStream):
         ds = Config(**kwargs)
         ds._data = json.load(value)
         return ds
-
