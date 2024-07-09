@@ -882,9 +882,7 @@ def trial_collection(
     for start_reward, row in reward_sites.iterrows():
         trial_average = pd.DataFrame()
         if aligned is not None:
-            trial = continuous_data.loc[
-                row[aligned] + window[0] : row[aligned] + window[1], taken_col
-            ]
+            trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index <= row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
         else:
             trial = continuous_data.loc[
@@ -892,7 +890,7 @@ def trial_collection(
             ]
             trial.index -= start_reward
 
-        if "filtered_velocity" in taken_col:
+        if "filtered_velocity" == taken_col:
             trial_average["speed"] = trial.values
         else:
             trial_average[taken_col] = trial.values

@@ -10,6 +10,7 @@ from harp.reader import create_reader
 
 import data_io
 from utils import processing
+from packaging.version import Version
 
 _SECONDS_PER_TICK = 32e-6
 _payloadtypes = {
@@ -54,8 +55,8 @@ class TaskSchemaProperties:
         self._data["config"].streams[self.tasklogic].load_from_file()
 
         if (
-            "environment_statistics"
-            in self._data["config"].streams[self.tasklogic].data
+            "environment_statistics" in self._data["config"].streams[self.tasklogic].data or 
+            'task_parameters' in self._data["config"].streams[self.tasklogic].data
         ):
             self.environment = "environment_statistics"
             self.reward_specification = "reward_specification"
@@ -66,13 +67,19 @@ class TaskSchemaProperties:
             self.reward_specification = "rewardSpecifications"
             self.odor_specifications = "odorSpecifications"
             self.odor_index = "odorIndex"
-
-        self.patches = (
-            self._data["config"]
-            .streams[self.tasklogic]
-            .data[self.environment]["patches"]
-        )
-
+            
+        if 'task_parameters' in self._data["config"].streams[self.tasklogic].data:
+            self.patches = (
+                self._data["config"]
+                .streams[self.tasklogic]
+                .data['task_parameters'][self.environment]["patches"]
+        )   
+        else:
+            self.patches = (
+                self._data["config"]
+                .streams[self.tasklogic]
+                .data[self.environment]["patches"]
+            )
 
 class ContinuousData:
     def __init__(self, data, load_continuous: bool = True):
@@ -84,13 +91,18 @@ class ContinuousData:
             "harp_behavior"
         ].streams.PulseSupplyPort0.load_from_file()  # Duration of each pulse
         self.data["harp_behavior"].streams.DigitalInputState.load_from_file()
-        self.data["harp_behavior"].streams.AnalogData.load_from_file()
         if "rig_input" in self.data["config"].streams.keys():
             self.rig = "rig_input"
         else:
             self.rig = "Rig"
         self.data["config"].streams[self.rig].load_from_file()
         self.data["software_events"].streams.ChoiceFeedback.load_from_file()
+        
+        if 'schema_version' in self.data["config"].streams[self.rig].data:
+            self.current_version=Version(self.data["config"].streams[self.rig].data['schema_version'])
+        else:
+            self.current_version=Version(self.data["config"].streams[self.rig].data['version'])
+
         if load_continuous == True:
             self.encoder_data = self.encoder_loading()
             self.choice_feedback = self.choice_feedback_loading()
@@ -103,18 +115,30 @@ class ContinuousData:
 
     def encoder_loading(self):
         ## Load data from encoder efficiently
-        if "harp_board" in self.data["config"].streams[self.rig].data["treadmill"]:
-            if (
+        if self.current_version >= Version("0.3.0"):
+            self.data["harp_treadmill"].streams.SensorData.load_from_file()
+            encoder_data = self.data["harp_treadmill"].streams.SensorData.data
+            
+            wheel_size = (
                 self.data["config"]
                 .streams[self.rig]
-                .data["treadmill"]["harp_board"]["device_type"]
-                == "behavior"
-            ):
-                encoder_data = self.data["harp_behavior"].streams.AnalogData.data
+                .data["harp_treadmill"]["calibration"]["wheel_diameter"]
+            )
+            PPR = (
+                self.data["config"]
+                .streams[self.rig]
+                .data["harp_treadmill"]["calibration"]["pulses_per_revolution"]
+            )
+            invert_direction = (
+                self.data["config"]
+                .streams[self.rig]
+                .data["harp_treadmill"]["calibration"]["invert_direction"]
+            )
+            
         else:
+            self.data["harp_behavior"].streams.AnalogData.load_from_file()
             encoder_data = self.data["harp_behavior"].streams.AnalogData.data
 
-        if "settings" in self.data["config"].streams[self.rig].data["treadmill"]:
             wheel_size = (
                 self.data["config"]
                 .streams[self.rig]
@@ -130,10 +154,6 @@ class ContinuousData:
                 .streams[self.rig]
                 .data["treadmill"]["settings"]["invert_direction"]
             )
-        else:
-            wheel_size = 15
-            PPR = 8192.0
-            invert_direction = True
 
         converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
 
@@ -148,11 +168,15 @@ class ContinuousData:
         # encoder_data.index = encoder_data.index.total_seconds()
         self.encoder_data = encoder_data
 
-        return self.encoder_data
+        return self.encoder_data[['Encoder','velocity', 'filtered_velocity']]
 
     def choice_feedback_loading(self):
-        # Find responses to Reward site
-        self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
+        if self.current_version < Version("0.3.0"):
+            # Find responses to Reward site
+            self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
+        else:
+            self.data["software_events"].streams.ChoiceFeedback.load_from_file()
+            self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
         return self.choice_feedback
 
     def lick_onset_loading(self):
