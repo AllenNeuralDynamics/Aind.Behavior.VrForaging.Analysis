@@ -8,9 +8,8 @@ import requests
 from pathlib import Path
 from dotmap import DotMap
 import pandas as pd
-
-from harp.reader import DeviceReader, create_reader
-
+from harp.reader import DeviceReader, create_reader, read_schema, _ReaderParams, _create_register_parser
+import io
 
 # Data stream sources
 class Streams(DotMap):
@@ -92,23 +91,28 @@ class SoftwareEventSource(DataStreamSource):
         self.streams = Streams({stream.name: stream for stream in streams})
 
 
-def reader_from_url(device_yml_url: str) -> DeviceReader:
+def reader_from_url(device_yml_url: str, base_path: Optional[PathLike] = Path(".")) -> DeviceReader:
     """Reads a device from a URL"""
     """Example: https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"""
     response = requests.get(device_yml_url)
     response.raise_for_status()
-    device=create_reader(response.text)
-    device = create_reader(device_yml_url)
-    return device
+    device = read_schema(io.TextIOWrapper(io.BytesIO(response.content)), True)
+    reg_readers = {
+        name: _create_register_parser(
+            device, name, _ReaderParams(base_path, None, True)
+        )
+        for name in device.registers.keys()
+    }
+    return DeviceReader(device, reg_readers)
 
-    
+
 class HarpSource(DataStreamSource):
     def __init__(self, device: DeviceReader | Dict,
                  path: str | PathLike,
                  name: str | None = None,
                  file_pattern_matching: str = "*",
                  autoload=False,
-                 remove_suffix: Optional[str] = "Register__") -> None:
+                 remove_suffix: Optional[str] = None) -> None:
         if isinstance(device, Dict):
             device = create_reader(**device)
             self._device = device
@@ -123,7 +127,7 @@ class HarpSource(DataStreamSource):
     def device(self) -> DeviceReader:
         return self._device
 
-    def populate_streams(self, autoload: bool) -> Streams:
+    def populate_streams(self, autoload: bool) -> None:
         if self.remove_suffix:
             streams = [HarpStream(
                 self.device,
@@ -131,11 +135,30 @@ class HarpSource(DataStreamSource):
                 name=file.stem.replace(self.remove_suffix, ""))
                 for file in self.files]
         else:
-            streams = [HarpStream(self.device, file) for file in self.files]
+            _inverted_device = self._invert_address_reg_mapping(self.device)
+            streams = []
+            for file in self.files:
+                try:
+                    streams.append(HarpStream(
+                        self.device,
+                        file,
+                        name=_inverted_device[int(file.stem.split('_')[-1])]))
+                except KeyError:
+                    Warning(f"Could not find a register for {file}")
+                except ValueError as e:
+                    if file.stem.split('_')[-1] == "device":
+                        pass
+                    else:
+                        raise e
         if autoload is True:
             for stream in streams:
                 stream.load_from_file()
         self.streams = Streams({stream.name: stream for stream in streams})
+
+    @staticmethod
+    def _invert_address_reg_mapping(device: DeviceReader) -> Dict[int, str]:
+        return {v.address: k for k, v in device.device.registers.items()}
+
 
 
 class ConfigSource(DataStreamSource):
@@ -145,7 +168,7 @@ class ConfigSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> Streams:
+    def populate_streams(self, autoload: bool) -> None:
         streams = [Config(file) for file in self.files]
         if autoload is True:
             for stream in streams:
@@ -161,7 +184,7 @@ class OperationControlSource(DataStreamSource):
                  autoload=True) -> None:
         super().__init__(path, name, file_pattern_matching, autoload=autoload)
 
-    def populate_streams(self, autoload: bool) -> Streams:
+    def populate_streams(self, autoload: bool) -> None:
         streams: List[DataStream] = []
         for file in self.files:
             streams.append(
