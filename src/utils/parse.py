@@ -523,8 +523,10 @@ def load_session_data(
 
     session_path_behavior = session_path
     session_path_config = session_path
+    suffix='Register__'
     if 'behavior' in os.listdir(session_path): 
         session_path_behavior = session_path / 'behavior'
+        suffix=None
     if "other" in os.listdir(session_path):
         session_path_config = session_path / 'other'
         
@@ -533,35 +535,40 @@ def load_session_data(
             device=HarpBehavior,
             path= session_path_behavior / "Behavior.harp",
             name="behavior",
-            autoload=False)
+            autoload=False, 
+            remove_suffix=suffix)
     else:
         print('Old behavior loading')
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
             path= session_path_behavior / "Behavior",
             name="behavior",
-            autoload=False)    
+            autoload=False,
+            remove_suffix=suffix)    
         
     if 'Olfactometer.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_olfactometer"] = data_io.HarpSource(
             device=HarpOlfactometer, 
             path=session_path_behavior / "Olfactometer.harp", 
             name="olfactometer", 
-            autoload=False)
+            autoload=False,
+            remove_suffix=suffix)
         
     if 'Lickometer.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_lickometer"] = data_io.HarpSource(
             device=HarpLickometer, 
             path=session_path_behavior / "Lickometer.harp", 
             name="lickometer", 
-            autoload=False)
+            autoload=False,
+            remove_suffix=suffix)
         
     if 'SniffDetector.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_sniffsensor"] = data_io.HarpSource(
             device=HarpSniffsensor, 
             path=session_path_behavior / "SniffDetector.harp", 
             name="sniffdetector", 
-            autoload=False)
+            autoload=False,
+            remove_suffix=suffix)
         
     _out_dict["software_events"] = data_io.SoftwareEventSource(
         path=session_path_behavior / "SoftwareEvents",
