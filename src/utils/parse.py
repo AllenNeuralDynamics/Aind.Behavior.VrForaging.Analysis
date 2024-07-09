@@ -503,88 +503,107 @@ def load_session_data(
 ) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
     session_path = Path(session_path)
-    HarpBehavior = create_reader(device=r"C:\git\harp-tech\device.behavior\device.yml")
-    HarpOlfactometer = create_reader(
-        device=r"C:\git\harp-tech\device.olfactometer\device.yml"
-    )
-    HarpLickometer = create_reader(
-        device=r"C:\git\harp-tech\harp.device.lickety-split\software\bonsai\device.yml"
-    )
-    HarpSniffsensor = create_reader(
-        device=r"C:\git\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml"
-    )
+    # HarpBehavior = create_reader(device=r"..\..\..\..\harp-tech\device.behavior\device.yml")
+    # HarpOlfactometer = create_reader(
+    #     device=r"..\..\..\harp-tech\device.olfactometer\device.yml"
+    # )
+    # HarpLickometer = create_reader(
+    #     device=r"..\..\..\..\harp-tech\harp.device.lickety-split\software\bonsai\device.yml"
+    # )
+    # HarpSniffsensor = create_reader(
+    #     device=r"..\..\..\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml"
+    # )
+    
+    HarpBehavior = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml")
+    HarpOlfactometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/main/device.yml")
+    HarpAnalogInput = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml")
+    HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill/main/software/bonsai/device.yml")
+    HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/software/bonsai/device.yml")
+    HarpLickometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/software/bonsai/device.yml")
 
-    if "Behavior.harp" in os.listdir(session_path):
+    session_path_behavior = session_path
+    session_path_config = session_path
+    if 'behavior' in os.listdir(session_path): 
+        session_path_behavior = session_path / 'behavior'
+    if "other" in os.listdir(session_path):
+        session_path_config = session_path / 'other'
+        
+    if 'Behavior.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
-            path=session_path / "Behavior.harp",
+            path= session_path_behavior / "Behavior.harp",
             name="behavior",
-            autoload=False,
-        )
+            autoload=False)
     else:
-        behavior = 0
-        print("Old behavior loading")
+        print('Old behavior loading')
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
-            path=session_path / "Behavior",
+            path= session_path_behavior / "Behavior",
             name="behavior",
-            autoload=False,
-        )
-
-    if "Olfactometer.harp" in os.listdir(session_path):
+            autoload=False)    
+        
+    if 'Olfactometer.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_olfactometer"] = data_io.HarpSource(
-            device=HarpOlfactometer,
-            path=session_path / "Olfactometer.harp",
-            name="olfactometer",
-            autoload=False,
-        )
-
-    if "Lickometer.harp" in os.listdir(session_path):
+            device=HarpOlfactometer, 
+            path=session_path_behavior / "Olfactometer.harp", 
+            name="olfactometer", 
+            autoload=False)
+        
+    if 'Lickometer.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_lickometer"] = data_io.HarpSource(
-            device=HarpLickometer,
-            path=session_path / "Lickometer.harp",
-            name="lickometer",
-            autoload=False,
-        )
-
-    if "SniffDetector.harp" in os.listdir(session_path):
+            device=HarpLickometer, 
+            path=session_path_behavior / "Lickometer.harp", 
+            name="lickometer", 
+            autoload=False)
+        
+    if 'SniffDetector.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_sniffsensor"] = data_io.HarpSource(
-            device=HarpSniffsensor,
-            path=session_path / "SniffDetector.harp",
-            name="sniffdetector",
-            autoload=False,
-        )
-
+            device=HarpSniffsensor, 
+            path=session_path_behavior / "SniffDetector.harp", 
+            name="sniffdetector", 
+            autoload=False)
+        
     _out_dict["software_events"] = data_io.SoftwareEventSource(
-        path=session_path / "SoftwareEvents", name="software_events", autoload=True
-    )
+        path=session_path_behavior / "SoftwareEvents",
+        name="software_events",
+        autoload=True)
 
     # Load config old version
-    if "config.json" in os.listdir(session_path):
-        with open(str(session_path) + "\config.json", "r") as json_file:
+    if 'config.json' in os.listdir(session_path_config):
+        with open(str(session_path_config)+'\config.json', 'r') as json_file:
             config = json.load(json_file)
-
-    # Load new configuration
+            
     else:
         _out_dict["config"] = data_io.ConfigSource(
-            path=session_path / "Config", name="config", autoload=True
-        )
-
-    if "OperationControl.harp" in os.listdir(session_path):
+            path=session_path_config / "Config",
+            name="config",
+            autoload=True)
+    
+    if 'OperationControl' in os.listdir(session_path_behavior):
         _out_dict["operation_control"] = data_io.OperationControlSource(
-            path=session_path / "OperationControl.harp",
+            path=session_path_behavior / "OperationControl",
             name="operation_control",
-            autoload=True,
-        )
+            autoload=True)
     else:
         pass
-
-    if "UpdaterEvents" in os.listdir(session_path):
-        _out_dict["updater_events"] = data_io.UpdaterEventSource(
-            path=session_path / "UpdaterEvents", name="updater_events", autoload=True
-        )
+    
+    if 'UpdaterEvents' in os.listdir(session_path_behavior):
+        _out_dict["updater_events"] = data_io.OperationControlSource(
+            path=session_path_behavior / "UpdaterEvents",
+            name="updater_events",
+            autoload=True)
     else:
         pass
+    
+    if 'Treadmill.harp' in os.listdir(session_path_behavior):
+        _out_dict["harp_treadmill"] = data_io.HarpSource(
+            device=HarpTreadmill, 
+            path=session_path_behavior / "Treadmill.harp", 
+            name="treadmill", 
+            autoload=False)
+    else:
+        pass
+    
     return _out_dict
 
 
