@@ -96,7 +96,6 @@ class ContinuousData:
         else:
             self.rig = "Rig"
         self.data["config"].streams[self.rig].load_from_file()
-        self.data["software_events"].streams.ChoiceFeedback.load_from_file()
         
         if 'schema_version' in self.data["config"].streams[self.rig].data:
             self.current_version=Version(self.data["config"].streams[self.rig].data['schema_version'])
@@ -105,7 +104,6 @@ class ContinuousData:
 
         if load_continuous == True:
             self.encoder_data = self.encoder_loading()
-            self.choice_feedback = self.choice_feedback_loading()
             self.lick_onset = self.lick_onset_loading()
             self.give_reward, self.pulse_duration, self.valve_output_pulse = (
                 self.water_valve_loading()
