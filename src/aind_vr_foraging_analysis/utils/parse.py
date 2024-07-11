@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 from harp.reader import create_reader
 
-import data_io
-from utils import processing
+from aind_vr_foraging_analysis import data_io 
+from aind_vr_foraging_analysis.utils import processing
 from packaging.version import Version
 
 _SECONDS_PER_TICK = 32e-6

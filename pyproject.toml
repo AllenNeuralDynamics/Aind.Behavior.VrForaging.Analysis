@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aind-behavior-vr-foraging-analysis"
+description = ""
+license = {text = "MIT"}
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3"
+]
+readme = "README.md"
+dynamic = ["version"]
+
+dependencies = [
+  "harp-python@git+https://github.com/harp-tech/harp-python",
+  "pandas",
+  "numpy<2.0.0",
+  "jupyter",
+  "scipy",
+  "dotmap",
+  "matplotlib",
+  "scipy",
+  "seaborn",
+  "scikit-learn",
+  "tabulate",
+  "statsmodels"
+]
+
+[project.optional-dependencies]
+
+linters = [
+    'codespell',
+    'black',
+    'coverage',
+    'flake8',
+    'interrogate',
+    'isort'
+]
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "aind_vr_foraging_analysis.__version__"}
+readme = {file = ["README.md"]}
+
+[tool.black]
+line-length = 120
+target_version = ['py311']
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | build
+    | dist
+  )/
+  | .gitignore
+)
+'''
+
+[tool.coverage.run]
+omit = ["*__init__*"]
+source = ["aind_vr_foraging_analysis", "tests"]
+
+[tool.coverage.report]
+exclude_lines = ["if __name__ == .__main__.:", "pragma: no cover"]
+fail_under = 100
+
+[tool.isort]
+profile = "black"
+
+[tool.interrogate]
+exclude = ["setup.py", "docs", "build"]
+fail-under = 100
+
+[tool.codespell]
+skip = '.git,*.pdf,*.svg'
+ignore-words-list = 'nd'
