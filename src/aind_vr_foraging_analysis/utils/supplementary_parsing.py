@@ -137,6 +137,8 @@ class AddExtraColumns:
             self.total_epochs.label == "RewardSite"
         ]
 
+        return self.total_epochs
+    
     def add_previous_odor_info(self):
         # -------------------------------- Add previous and next site information ---------------------
         index = self.reward_sites.index[1:].tolist()
