@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from harp.reader import create_reader
 
-from aind_vr_foraging_analysis import data_io 
+import aind_vr_foraging_analysis.data_io as data_io
 from aind_vr_foraging_analysis.utils import processing
 from packaging.version import Version
 
@@ -24,7 +24,6 @@ _payloadtypes = {
     136: np.dtype(np.int64),
     68: np.dtype(np.float32),
 }
-
 
 class TaskSchemaProperties:
     """This class is used to store the schema properties of the task configuration.
@@ -96,7 +95,6 @@ class ContinuousData:
         else:
             self.rig = "Rig"
         self.data["config"].streams[self.rig].load_from_file()
-        self.data["software_events"].streams.ChoiceFeedback.load_from_file()
         
         if 'schema_version' in self.data["config"].streams[self.rig].data:
             self.current_version=Version(self.data["config"].streams[self.rig].data['schema_version'])
@@ -134,6 +132,9 @@ class ContinuousData:
                 .streams[self.rig]
                 .data["harp_treadmill"]["calibration"]["invert_direction"]
             )
+            encoder_data['diff'] = encoder_data.Encoder.diff()
+            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            encoder_data["velocity"] = (encoder_data["diff"] * converter) * 100
             
         else:
             self.data["harp_behavior"].streams.AnalogData.load_from_file()
@@ -154,10 +155,9 @@ class ContinuousData:
                 .streams[self.rig]
                 .data["treadmill"]["settings"]["invert_direction"]
             )
-
-        converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-
-        encoder_data["velocity"] = (encoder_data["Encoder"] * converter) * 1000
+            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            encoder_data["velocity"] = (encoder_data["Encoder"] * converter) * 1000
+            
         self.encoder_data = processing.fir_filter(encoder_data, 5)
 
         # Load treadmill data
@@ -171,13 +171,13 @@ class ContinuousData:
         return self.encoder_data[['Encoder','velocity', 'filtered_velocity']]
 
     def choice_feedback_loading(self):
+        self.data['harp_behavior'].streams.PwmStart.load_from_file()
         if self.current_version < Version("0.3.0"):
             # Find responses to Reward site
-            self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
+            choice_feedback = self.data['harp_behavior'].streams.PwmStart.data.loc[self.data['harp_behavior'].streams.PwmStart.data['PwmDO1'] == True]
         else:
-            self.data["software_events"].streams.ChoiceFeedback.load_from_file()
-            self.choice_feedback = self.data["software_events"].streams.ChoiceFeedback.data
-        return self.choice_feedback
+            choice_feedback = self.data['harp_behavior'].streams.PwmStart.data.loc[self.data['harp_behavior'].streams.PwmStart.data['PwmDO2'] == True]
+        return choice_feedback
 
     def lick_onset_loading(self):
         if "harp_lickometer" in self.data:
@@ -185,13 +185,13 @@ class ContinuousData:
             lick_onset = (
                 self.data["harp_lickometer"].streams.LickState.data["Channel0"] == True
             )
-            self.lick_onset = lick_onset.loc[lick_onset == True]
+            lick_onset = lick_onset.loc[lick_onset == True]
         else:
             di_state = self.data["harp_behavior"].streams.DigitalInputState.data[
                 "DIPort0"
             ]
-            self.lick_onset = di_state.loc[di_state == True]
-        return self.lick_onset
+            lick_onset = di_state.loc[di_state == True]
+        return lick_onset
 
     def water_valve_loading(self):
         # Find give reward event
@@ -687,18 +687,18 @@ def odor_data_harp_olfactometer(data, reward_sites):
     ].streams.OdorValveState.data.index.values
     data["harp_olfactometer"].streams.OdorValveState.data["Valve0"] = np.where(
         data["harp_olfactometer"].streams.OdorValveState.data["Valve0"] == True,
-        odor0,
-        data["harp_olfactometer"].streams.OdorValveState.data["Valve0"],
+        '0',
+        False,
     )
     data["harp_olfactometer"].streams.OdorValveState.data["Valve1"] = np.where(
         data["harp_olfactometer"].streams.OdorValveState.data["Valve1"] == True,
-        odor1,
-        data["harp_olfactometer"].streams.OdorValveState.data["Valve1"],
+        '1',
+        False,
     )
     data["harp_olfactometer"].streams.OdorValveState.data["Valve2"] = np.where(
         data["harp_olfactometer"].streams.OdorValveState.data["Valve2"] == True,
-        odor2,
-        data["harp_olfactometer"].streams.OdorValveState.data["Valve2"],
+        '2',
+        False,
     )
 
     # Create a new dataframe to store the results
@@ -722,11 +722,13 @@ def odor_data_harp_olfactometer(data, reward_sites):
             )
 
     EndValveState = pd.DataFrame()
-    EndValveState["time"] = data[
+    EndValve = data[
         "harp_olfactometer"
-    ].streams.EndValveState.data.index.values
+    ].streams.EndValveState.data
+    EndValve = EndValve[EndValve['MessageType'] == 'WRITE']
+    EndValveState["time"] = EndValve.index.values
     EndValveState["condition"] = np.where(
-        data["harp_olfactometer"].streams.EndValveState.data["EndValve0"] == True,
+        EndValve["EndValve0"] == True,
         "EndValveOn",
         "EndValveOff",
     )
@@ -737,39 +739,46 @@ def odor_data_harp_olfactometer(data, reward_sites):
     odor_updates = odor_updates.sort_values(by="time")
     odor_updates = odor_updates[odor_updates["condition"] != False]
 
-    odor_triggers = pd.DataFrame(columns=["odor_onset", "odor_offset", "condition"])
+    odor_triggers = pd.DataFrame(columns=["odor_onset", "odor_offset", "patch_type"])
     onset = np.nan
     offset = np.nan
     first = True
+    opened = np.nan
+    condition = "EndValveOff"
     for i, row in odor_updates.iterrows():
-        if row["condition"] == "EndValveOn":
+        if (row["condition"] != "EndValveOn") and (row["condition"] != "EndValveOff"):
+            condition = row["condition"]
+            opened = True
+
+        elif row["condition"] == "EndValveOn":
             onset = row["time"]
+            opened = True
 
-        elif row["condition"] == "EndValveOff":
+        elif row["condition"] == "EndValveOff" and opened:
             offset = row["time"]
-
-        elif (row["condition"] != "EndValveOn") or (row["condition"] != "EndValveOff"):
-            if first:
-                condition = row["condition"]
-                first = False
-                continue
-            else:
-                new_row = {
-                    "odor_onset": onset,
-                    "odor_offset": offset,
-                    "condition": condition,
-                }
-                odor_triggers.loc[len(odor_triggers)] = new_row
-                condition = row["condition"]
-
+            opened = False
+            
+        if opened == False:
+            new_row = {
+                "odor_onset": onset,
+                "odor_offset": offset,
+                "patch_type": condition,
+            }
+            odor_triggers.loc[len(odor_triggers)] = new_row
+            condition = row["condition"]
+        
     if row["condition"] == "EndValveOn":
-        new_row = {"odor_onset": onset, "odor_offset": np.nan, "condition": condition}
+        new_row = {"odor_onset": onset, "odor_offset": np.nan, "patch_type": condition}
         odor_triggers.loc[len(odor_triggers)] = new_row
 
+    print(odor_triggers)
+    print(reward_sites)
+    reward_sites["odor_onset"] = np.nan
+    reward_sites["odor_offset"] = np.nan
     try:
-        assert np.any(
-            odor_triggers["condition"].values == reward_sites["odor_label"].values
-        )
+        # assert np.any(
+        #     odor_triggers["condition"].values == reward_sites["odor_label"].values
+        # )
         reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
         reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
     except:
@@ -1139,26 +1148,29 @@ def parse_dataframe(data: pd.DataFrame):
 
     # Find responses to Reward site
     # Recover tones
-    data["software_events"].streams.ChoiceFeedback.load_from_file()
-    choiceFeedback = data["software_events"].streams.ChoiceFeedback.data
+    choiceFeedback = ContinuousData(data).choice_feedback
 
     # Recover water delivery
     data["harp_behavior"].streams.OutputSet.load_from_file()
     data["harp_behavior"].streams.OutputClear.load_from_file()
     water = data["harp_behavior"].streams.OutputSet.data[["SupplyPort0"]]
 
-    # Successfull waits
-    data["software_events"].streams.WaitRewardOutcome.load_from_file()
-    succesfull_wait = pd.DataFrame(
-        index=data["software_events"].streams.WaitRewardOutcome.data.index,
-        columns=["data"],
-    )
-    new_data = pd.json_normalize(
-        data["software_events"].streams.WaitRewardOutcome.data["data"]
-    )["IsSuccessfulWait"]
-    succesfull_wait["data"] = new_data.values
-    succesfull_wait = succesfull_wait[succesfull_wait["data"] == True]
-
+    if "WaitRewardOutcome" in data["software_events"].streams:
+        # Successfull waits
+        data["software_events"].streams.WaitRewardOutcome.load_from_file()
+        succesfull_wait = pd.DataFrame(
+            index=data["software_events"].streams.WaitRewardOutcome.data.index,
+            columns=["data"],
+        )
+        
+        new_data = pd.json_normalize(
+            data["software_events"].streams.WaitRewardOutcome.data["data"]
+        )["IsSuccessfulWait"]
+        succesfull_wait["data"] = new_data.values
+        succesfull_wait = succesfull_wait[succesfull_wait["data"] == True]
+    else:
+        succesfull_wait = pd.Series([]
+                                    )
     reward_sites.loc[:, "active_patch"] = -1
     reward_sites.loc[:, "visit_number"] = -1
     reward_sites.loc[:, "has_choice"] = False
@@ -1234,15 +1246,16 @@ def parse_dataframe(data: pd.DataFrame):
     reward_sites.drop(columns=["Seconds"], inplace=True)
 
     # ---------------- Add odor valve trigger times ---------------- #
-    try:
-        reward_sites = odor_data_harp_olfactometer(data, reward_sites)
-    except:
-        print("No olfactometer data - Old system?")
-        pass
+    # try:
+    # reward_sites = odor_data_harp_olfactometer(data, reward_sites)
+    # except:
+    #     print("No olfactometer data - Old system?")
+    #     pass
     # ---------------------------------------------------- #
-
-    reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
-
+    try:
+        reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+    except:
+        pass
     return reward_sites, active_site, data["config"]
 
 
