@@ -1106,13 +1106,15 @@ def parse_data_old(data, path):
 
 
 ## ------------------------------------------------------------------------- ##
-def parse_dataframe(data: pd.DataFrame):
+def parse_dataframe(data: pd.DataFrame, has_choice: bool = True) -> pd.DataFrame:
     """
     Parse the data from the session and return the reward sites, active sites and encoder data
 
     Inputs:
     data: pd.DataFrame
         Data from the session
+    has_choice: bool
+        If the session has choice feedback
 
     Returns:
     reward_sites: pd.DataFrame
@@ -1147,7 +1149,8 @@ def parse_dataframe(data: pd.DataFrame):
 
     # Find responses to Reward site
     # Recover tones
-    choiceFeedback = ContinuousData(data).choice_feedback
+    if has_choice:
+        choiceFeedback = ContinuousData(data).choice_feedback_loading()
 
     # Recover water delivery
     data["harp_behavior"].streams.OutputSet.load_from_file()
@@ -1194,10 +1197,11 @@ def parse_dataframe(data: pd.DataFrame):
         reward_sites.loc[event[0], "visit_number"] = visit_number
 
         if idx < len(reward_sites) - 1:
-            choice = choiceFeedback.loc[
-                (choiceFeedback.index >= reward_sites.index[idx])
-                & (choiceFeedback.index < reward_sites.index[idx + 1])
-            ]
+            if has_choice:
+                choice = choiceFeedback.loc[
+                    (choiceFeedback.index >= reward_sites.index[idx])
+                    & (choiceFeedback.index < reward_sites.index[idx + 1])
+                ]
             reward_in_site = water.loc[
                 (water.index >= reward_sites.index[idx])
                 & (water.index < reward_sites.index[idx + 1])
@@ -1208,17 +1212,18 @@ def parse_dataframe(data: pd.DataFrame):
             ]
 
         else:  # Last odorsite of the session
-            choice = choiceFeedback.loc[
-                (choiceFeedback.index >= reward_sites.index[idx])
-            ]
+            if has_choice:
+                choice = choiceFeedback.loc[
+                    (choiceFeedback.index >= reward_sites.index[idx])
+                ]
             reward_in_site = water.loc[(water.index >= reward_sites.index[idx])]
             waits = succesfull_wait.loc[
                 (succesfull_wait.index >= reward_sites.index[idx])
             ]
-
-        reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
-        reward_sites.loc[event[0], "stop_cue"] = (
-            choice.index[0] if len(choice) > 0 else np.nan
+        if has_choice:
+            reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
+            reward_sites.loc[event[0], "stop_cue"] = (
+                choice.index[0] if len(choice) > 0 else np.nan
         )
         reward_sites.loc[event[0], "reward_delivered"] = (
             1 if len(reward_in_site) > 0 else 0
