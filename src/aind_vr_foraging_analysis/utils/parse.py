@@ -1259,7 +1259,9 @@ def parse_dataframe(data: pd.DataFrame, has_choice: bool = True) -> pd.DataFrame
     try:
         reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
     except:
-        pass
+        #write novelty exception if else statement
+        reward_sites["reward_amount"] = 0
+        reward_sites["reward_available"] = 0
     return reward_sites, active_site, data["config"]
 
 
