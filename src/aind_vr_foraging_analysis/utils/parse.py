@@ -110,6 +110,8 @@ class ContinuousData:
             )
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
+            # self.torque_data = self.torque_loading()
+            # self.odor_triggers = odor_data_harp_olfactometer(self.data, self.reward_sites)
 
     def encoder_loading(self):
         ## Load data from encoder efficiently
@@ -134,8 +136,9 @@ class ContinuousData:
             )
             encoder_data['diff'] = encoder_data.Encoder.diff()
             converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-            encoder_data["velocity"] = (encoder_data["diff"] * converter) * 100
-            
+            encoder_data["velocity"] = (encoder_data["diff"] * converter) * 250 # To be replaced by dispatch rate whe it works
+            encoder_data["distance"] = (encoder_data["diff"] * converter)
+                        
         else:
             self.data["harp_behavior"].streams.AnalogData.load_from_file()
             encoder_data = self.data["harp_behavior"].streams.AnalogData.data
@@ -157,6 +160,7 @@ class ContinuousData:
             )
             converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
             encoder_data["velocity"] = (encoder_data["Encoder"] * converter) * 1000
+            encoder_data["distance"] = (encoder_data["Encoder"] * converter)
             
         self.encoder_data = processing.fir_filter(encoder_data, 5)
 
@@ -168,7 +172,7 @@ class ContinuousData:
         # encoder_data.index = encoder_data.index.total_seconds()
         self.encoder_data = encoder_data
 
-        return self.encoder_data[['Encoder','velocity', 'filtered_velocity']]
+        return self.encoder_data[['Encoder','velocity', 'filtered_velocity', 'distance']]
 
     def choice_feedback_loading(self):
         self.data['harp_behavior'].streams.PwmStart.load_from_file()
