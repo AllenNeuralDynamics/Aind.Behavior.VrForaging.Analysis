@@ -104,6 +104,7 @@ class ContinuousData:
         if load_continuous == True:
             self.encoder_data = self.encoder_loading()
             self.lick_onset = self.lick_onset_loading()
+            self.choice_feedback = self.choice_feedback_loading()
             self.give_reward, self.pulse_duration, self.valve_output_pulse = (
                 self.water_valve_loading()
             )
@@ -1147,7 +1148,7 @@ def parse_dataframe(data: pd.DataFrame) -> pd.DataFrame:
 
     # Find responses to Reward site
     # Recover tones
-    choiceFeedback = ContinuousData(data).choice_feedback_loading()
+    choiceFeedback = ContinuousData(data).choice_feedback
 
     # Recover water delivery
     data["harp_behavior"].streams.OutputSet.load_from_file()

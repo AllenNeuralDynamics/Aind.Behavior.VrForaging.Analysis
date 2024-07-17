@@ -755,6 +755,7 @@ def velocity_traces_odor_entry(
         list(color_dict_label.keys())[0],
         list(color_dict_label.keys())[1],
         list(color_dict_label.keys())[2],
+        list(color_dict_label.keys())[3],
     ]
 
     fig, ax1 = plt.subplots(
