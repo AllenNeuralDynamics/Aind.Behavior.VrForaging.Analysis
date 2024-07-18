@@ -845,7 +845,7 @@ def trial_collection(
     continuous_data: pd.DataFrame,
     mouse: str,
     session: str,
-    aligned: str = None,
+    aligned: str = 'index',
     window: tuple = (-0.5, 2),
     taken_col: str = "filtered_velocity",
 ):
@@ -876,12 +876,13 @@ def trial_collection(
 
     """
     trial_summary = pd.DataFrame()
+    samples_per_second = np.around(np.mean(continuous_data.index.diff().dropna()), 3)
 
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
     for start_reward, row in reward_sites.iterrows():
         trial_average = pd.DataFrame()
-        if aligned is not None:
+        if aligned is not 'index':
             trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index <= row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
         else:
@@ -895,7 +896,15 @@ def trial_collection(
         else:
             trial_average[taken_col] = trial.values
 
-        trial_average["times"] = np.around(trial.index, 3)
+        # Assuming trial.values, window, and samples_per_second are defined
+        # Calculate the maximum number of intervals that can fit within the available data points
+        max_intervals = len(trial.values) * samples_per_second
+
+        # Calculate the actual stop value based on the maximum possible intervals
+        actual_stop = min(window[1], window[0] + max_intervals)
+
+        # Generate the time range with the adjusted stop value
+        trial_average["times"] = np.around(np.arange(window[0], actual_stop, samples_per_second), 3)
 
         # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
