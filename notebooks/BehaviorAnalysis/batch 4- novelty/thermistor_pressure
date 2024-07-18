@@ -1,0 +1,253 @@
+filter_bool = True
+smooth = True
+range_plot = [010.0,211]
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.fft import fft, ifft
+import seaborn as sns
+from scipy.signal import find_peaks
+from scipy import signal
+from sklearn.preprocessing import MinMaxScaler
+
+import libraries as lib
+
+session = 'Lidia_Test3_breathing.csv'
+# session_save = 'Leslie_Test1_breathing_short.csv'
+path = 'C:/Users/tiffany.ona/OneDrive - Allen Institute/Documents/VR foraging/Sessions/' + session
+save_path = 'C:/Users/tiffany.ona/OneDrive - Allen Institute/Documents/VR foraging/Figures/'
+
+
+df = pd.read_csv(path, header= None)
+# df[2] = df[2] - df[2].iloc[0]
+# df.loc[(df[2] < 230)&(df[2] > 200)].to_csv(save_path+session_save)
+
+x = df[2] - df[2].iloc[0]
+press = -(df[0] - df[0].mean())
+ther = (df[1] - df[1].mean())
+
+# # Apply moving average smoothing
+smoothed_ther = lib.moving_average(ther, window_size=5)
+
+# Remove the 60Hz noise from the thermistor signal
+smoothed_ther = lib.apply_filter(smoothed_ther, f_notch = 60, Q= 200)
+
+# Remove Slow oscillations
+slow_ther = lib.moving_average(smoothed_ther, window_size=100)
+new_ther = smoothed_ther-slow_ther
+
+press = lib.moving_average(press, window_size=3)
+
+######## -------------------------------------------
+# fig, ax = plt.subplots(2, 1, figsize=(10,8), sharex=True,sharey=True)
+
+# # ------   Find peaks for the pressure sensor
+# # peaks, properties = find_peaks(press, height= 6, prominence=12)
+# peaks, properties = find_peaks(press, height= 1.1, prominence=2.5, distance=30)
+# peaks_press = peaks
+
+# # Get peak heights and locations
+# peak_heights = properties['peak_heights']
+# peak_locations = x[peaks]
+
+# # Plot the curve and peaks
+# ax[0].plot(x, press, label='Pressure sensor', color='black', linewidth=0.7)
+# ax[0].plot(peak_locations, peak_heights, 'x', color='black')
+# ax[1].vlines(x[peaks], ymin=min(press), ymax=max(press), color='black', linewidth=0.17)
+
+# ### ---------- Plot lines
+# # Plot the curve and peaks
+# # plt.plot(x, smoothed_ther, label='Ther', color='crimson', linewidth=0.5)
+
+# slow_ther = lib.moving_average(ther, window_size=100)
+# # plt.plot(x, slow_ther, label='Slow ther', color='orange', linewidth=0.5)
+
+# new_ther = smoothed_ther-slow_ther
+# ax[1].plot(x, new_ther, label='New ther', color='crimson', linewidth=0.7)
+
+# # ------   Find peaks for the thermistor
+# # peaks, properties = find_peaks(smoothed_ther, height= 5, prominence=2)
+# peaks, properties = find_peaks(new_ther, height= 0, prominence=2.5, distance=20)
+# peaks_ther = peaks
+
+# # Get peak heights and locations
+# peak_heights = properties['peak_heights']
+# peak_locations = x[peaks]
+
+# ax[1].plot(peak_locations, peak_heights, 'x', color='red')
+# ax[0].vlines(x[peaks], ymin=min(new_ther), ymax=max(new_ther), color='red', linewidth=0.17)
+# plt.xlabel('Time (s)')
+# plt.ylabel('Units')
+# ax[0].set_title('Curve with Peaks')
+# plt.xlim(range_plot)
+# plt.ylim(-5,5.5)
+# ax[0].legend()
+# ax[1].legend()
+
+# ax[0].spines['bottom'].set_visible(False)
+# ax[0].tick_params(bottom=False)
+# sns.despine()
+# plt.tight_layout()
+# plt.show()
+######################################################
+
+### ------------ Both peaks together in the same plot. 
+fig, ax = plt.subplots(1, 1, figsize=(10,4), sharex=True,sharey=True)
+
+df_peaks_press = lib.findpeaks_and_plot(press, x, fig, range_plot, color='black', heigth=1.1, prominence=2.5, distance=30, label='Pressure sensor')
+
+df_peaks_ther =lib.findpeaks_and_plot(new_ther, x, fig, range_plot, color='crimson', heigth=0, prominence=1.5, distance=30, label='Ther')
+
+##3 plot freq. 
+start_range = range_plot[0]
+end_range = range_plot[1]
+rows_with_range = df_peaks_press['locations'][(df_peaks_press['locations'] >= start_range) & (df_peaks_press['locations'] <= end_range)]
+rows_with_range*=1000
+
+freqs = df_peaks_press[(df_peaks_press['data'] >= rows_with_range.iloc[0])&(df_peaks_press['data'] <= rows_with_range.iloc[-1])]['freq']
+plt.text(x=start_range+0.2, y=4.5, s='Freq in this epoch:' + str(np.round(np.mean(freqs),2)))
+
+sns.despine()
+plt.tight_layout()
+plt.savefig(save_path+session[:-3]+'_peaks_comparison.svg')
+plt.show()
+
+### ------------ Difference in units between peaks
+
+# Reshape the vectors to facilitate broadcasting
+vector1 = np.array(df_peaks_press.data).reshape(-1, 1)
+vector2 = np.array(df_peaks_ther.data).reshape(1, -1)
+
+# Calculate the differences between all pairs of values
+differences = vector2 - vector1
+
+# Find the index of the closest value for each element in vector1
+closest_indices = np.abs(differences).argmin(axis=1)
+
+# Get the closest values from vector2
+closest_values = vector2[np.arange(len(vector2)), closest_indices]
+
+# Calculate the differences
+differences = closest_values - vector1
+
+print('Difference between ther and press peaks', np.diag(differences).mean(),  np.diag(differences).std() )
+
+#########################################################################
+
+
+
+# ### ---------------------  Plot the peaks and neighbouring data
+
+# Define the number of points to recover before and after each peak
+# num_points = 50
+# bigger=False
+# df_peaks_press['freq_roll'] = lib.moving_average(df_peaks_press['freq'], 10)
+# median = df_peaks_press.freq_roll.median()
+
+# fig, ax = plt.subplots()
+
+# # Create a dataframe to store the recovered data
+# df_temp = pd.DataFrame()
+# y = press
+# labels=[]
+
+# # Recover data points for each peak
+# if bigger:
+#     for peak in df_peaks_press.loc[(df_peaks_press.freq_roll>=median)&(df_peaks_press.freq_roll<=25)].data:
+#         start_index = peak - num_points
+#         end_index = peak + num_points
+#         if start_index >= 0 and end_index < len(x):
+#             data = np.concatenate([y[start_index:peak], y[peak:end_index]])
+#             df_temp = df_temp.append(pd.Series(data), ignore_index=True)
+#             labels.append('press')
+            
+#             data = np.concatenate([new_ther[start_index:peak], new_ther[peak:end_index]])
+#             df_temp = df_temp.append(pd.Series(data), ignore_index=True)
+#             labels.append('ther')
+# else:
+#     for peak in df_peaks_press.loc[df_peaks_press.freq_roll<=median].data:
+#         start_index = peak - num_points
+#         end_index = peak + num_points
+#         if start_index >= 0 and end_index < len(x):
+#             data = np.concatenate([y[start_index:peak], y[peak:end_index]])
+#             df_temp = df_temp.append(pd.Series(data), ignore_index=True)
+#             labels.append('press')
+            
+#             data = np.concatenate([new_ther[start_index:peak], new_ther[peak:end_index]])
+#             df_temp = df_temp.append(pd.Series(data), ignore_index=True)
+#             labels.append('ther')
+            
+# df_temp['measure'] = labels
+
+# # Loop through each row in the dataframe
+# for i in range(len(df_temp.index)):
+#     # Get the values of the row
+#     row_values = df_temp.iloc[i].values
+    
+#     # Plot the row values
+#     if df_temp['measure'].iloc[i] == 'press':
+#         ax.plot(row_values[:-1], linewidth=0.1, color='grey')
+#     else:
+#         ax.plot(row_values[:-1], linewidth=0.1, color='pink')
+    
+# ax.plot(df_temp.loc[df_temp['measure'] == 'press'].mean(axis=0), color='black')
+# ax.plot(df_temp.loc[df_temp['measure'] == 'ther'].mean(axis=0), color='red')
+
+# ax.vlines(df_temp.loc[df_temp['measure'] == 'ther'].mean(axis=0).idxmax(), ymin=min(new_ther), ymax=max(new_ther), color='red', linewidth=1)
+# ax.vlines(50, ymin=min(new_ther), ymax=max(new_ther), color='black', linewidth=1)
+
+# plt.text(x=10, y=4, s='Ther timing: ' + str(df_temp.loc[df_temp['measure'] == 'ther'].mean(axis=0).idxmax()-50))
+
+# if bigger:
+#     plt.text(x=10, y=6, s='Total peaks: ' + str(df_peaks_press.loc[(df_peaks_press.freq_roll>=median)&(df_peaks_press.freq_roll<=25)].freq.count()))
+#     plt.title('Above ' + str(median) + ' Hz')
+# else:
+#     plt.text(x=10, y=6, s='Total peaks: ' + str(df_peaks_press.loc[df_peaks_press.freq_roll<=median].freq.count()))
+#     plt.title('Below ' + str(median) + ' Hz')
+
+# plt.ylabel('Units')
+# plt.xlabel('Time (ms)')
+# plt.ylim(-10,10)
+# plt.grid(True)
+# plt.show()
+
+### ----------  FFT 
+
+sampling_rate = 1000  # Sample rate (Hz)
+
+# path = 'C:/Users/tiffany.ona/OneDrive - Allen Institute/Documents/VR foraging/Sessions/Movement_tests_breathing.csv'
+# df = pd.read_csv(path, header= None)
+# movement = -(df[0] - df[0].mean())/3
+# x = df[2]
+
+# df_test = pd.DataFrame()
+# df_test['x'] = x
+# df_test['movement'] = movement
+# df_test = df_test.loc[(df_test.x > 789.6)&(df_test.x < 789.7)]
+
+# plt.plot(x, movement, label='Slow ther', color='orange', linewidth=0.5)
+# plt.xlim(789550,789552)
+# plt.ylim(-20.55,20.552)
+
+plt.figure(figsize=(6,4))
+# lib.plot_FFT(df_test.movement, color='orange', label='movement artifacts')
+lib.plot_FFT(new_ther, color='red', label='Ther')
+# lib.plot_FFT(press, color='black', label='Press')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# #############################
+
+for i, j in zip(np.arange(114,215), np.arange(115,216,1)):
+    plt.figure(figsize=(10,4))
+    range_plot = [i,j]
+    plt.plot(x, new_ther, color='black', linewidth=0.7)
+    plt.xlim(range_plot)
+    plt.ylim(-30,30)
+    plt.show()
+
+
+
+###### ---------------- Characterize the lag using separate frequencies of breathing
