@@ -113,11 +113,11 @@ class ContinuousData:
             # self.torque_data = self.torque_loading()
             # self.odor_triggers = odor_data_harp_olfactometer(self.data, self.reward_sites)
 
-    def encoder_loading(self):
+    def encoder_loading(self, parser: str = 'resampling'):
         ## Load data from encoder efficiently
         if self.current_version >= Version("0.3.0"):
             self.data["harp_treadmill"].streams.SensorData.load_from_file()
-            encoder_data = self.data["harp_treadmill"].streams.SensorData.data
+            sensor_data = self.data["harp_treadmill"].streams.SensorData.data
             
             wheel_size = (
                 self.data["config"]
@@ -134,14 +134,29 @@ class ContinuousData:
                 .streams[self.rig]
                 .data["harp_treadmill"]["calibration"]["invert_direction"]
             )
-            encoder_data['diff'] = encoder_data.Encoder.diff()
+            
             converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-            encoder_data["velocity"] = (encoder_data["diff"] * converter) * 250 # To be replaced by dispatch rate whe it works
-            encoder_data["distance"] = (encoder_data["diff"] * converter)
+            sensor_data['diff'] = sensor_data.Encoder.diff()
+
+            if parser == 'filter':
+                sensor_data["velocity"] = (sensor_data["diff"] * converter) * 250 # To be replaced by dispatch rate whe it works
+                sensor_data["distance"] = (sensor_data["diff"] * converter)
+                sensor_data = processing.fir_filter(sensor_data, 5)
+                encoder = sensor_data[['filtered_velocity']]
+                
+            elif parser == 'resampling':
+                encoder= sensor_data['diff']
+                encoder = encoder.apply(lambda x : x * converter)
+                encoder.index = pd.to_datetime(encoder.index, unit="s")
+                encoder = encoder.resample("50ms").sum().interpolate(method="linear") / 0.050
+                encoder.index = (encoder.index - pd.to_datetime(0))
+                encoder.index = encoder.index.total_seconds()
+                encoder = encoder.to_frame()
+                encoder.rename(columns={'diff': 'filtered_velocity'}, inplace=True)
                         
         else:
             self.data["harp_behavior"].streams.AnalogData.load_from_file()
-            encoder_data = self.data["harp_behavior"].streams.AnalogData.data
+            sensor_data = self.data["harp_behavior"].streams.AnalogData.data
 
             wheel_size = (
                 self.data["config"]
@@ -158,21 +173,28 @@ class ContinuousData:
                 .streams[self.rig]
                 .data["treadmill"]["settings"]["invert_direction"]
             )
-            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-            encoder_data["velocity"] = (encoder_data["Encoder"] * converter) * 1000
-            encoder_data["distance"] = (encoder_data["Encoder"] * converter)
             
-        self.encoder_data = processing.fir_filter(encoder_data, 5)
+            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            
+            if parser == 'filter':
+                sensor_data["velocity"] = (sensor_data["Encoder"] * converter) * 1000 # To be replaced by dispatch rate whe it works
+                sensor_data["distance"] = (sensor_data["Encoder"] * converter)
+                sensor_data = processing.fir_filter(sensor_data, 5)
+                encoder = sensor_data[['filtered_velocity']]
+            
+            elif parser == 'resampling':
+                encoder= sensor_data['Encoder']
+                encoder = encoder.apply(lambda x : x * converter)
+                encoder.index = pd.to_datetime(encoder.index, unit="s")
+                encoder = encoder.resample("4ms").sum().interpolate(method="linear") / 0.004
+                encoder.index = (encoder.index - pd.to_datetime(0))
+                encoder.index = encoder.index.total_seconds()
+                encoder = encoder.to_frame()
+                encoder.rename(columns={'Encoder': 'filtered_velocity'}, inplace=True)
 
-        # Load treadmill data
-        # Maybe look at how the traces change with these two ways
-        # encoder_data.index = pd.to_datetime(encoder_data.index, unit="s")
-        # encoder_data['resample_velocity'] = encoder_data['velocity'].resample("33ms").sum().interpolate(method="linear") / 0.033
-        # encoder_data.index = (encoder_data.index - pd.to_datetime(0))
-        # encoder_data.index = encoder_data.index.total_seconds()
-        self.encoder_data = encoder_data
+        self.encoder_data = encoder
 
-        return self.encoder_data[['Encoder','velocity', 'filtered_velocity', 'distance']]
+        return self.encoder_data
 
     def choice_feedback_loading(self):
         self.data['harp_behavior'].streams.PwmStart.load_from_file()
