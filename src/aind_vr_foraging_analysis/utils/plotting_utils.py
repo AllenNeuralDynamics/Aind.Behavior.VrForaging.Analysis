@@ -751,12 +751,9 @@ def velocity_traces_odor_entry(
     save: bool = False,
 ):
     """Plots the speed traces for each odor label condition"""
-    n_odors = [
-        list(color_dict_label.keys())[0],
-        list(color_dict_label.keys())[1],
-        list(color_dict_label.keys())[2],
-        list(color_dict_label.keys())[3],
-    ]
+    n_odors = []
+    for key in color_dict_label.keys():
+        n_odors.append(key)
 
     fig, ax1 = plt.subplots(
         1, len(n_odors), figsize=(len(n_odors) * 3.5, 4), sharex=True, sharey=True
@@ -771,6 +768,7 @@ def velocity_traces_odor_entry(
             ax.set_ylabel("Velocity (cm/s)")
 
         ax.set_xlabel("Time after odor onset (s)")
+        ax.set_title(f"Patch {odor_label}")
         ax.set_ylim(-13, max_range)
         ax.set_xlim(window)
         ax.hlines(
@@ -832,7 +830,6 @@ def velocity_traces_odor_entry(
 
     sns.despine()
     plt.tight_layout()
-
     if save != False:
         save.savefig(fig)
     else:
@@ -878,7 +875,7 @@ def trial_collection(
     """
     trial_summary = pd.DataFrame()
     samples_per_second = np.around(np.mean(continuous_data.index.diff().dropna()), 3)
-
+    
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
     for start_reward, row in reward_sites.iterrows():
@@ -892,11 +889,6 @@ def trial_collection(
             ]
             trial.index -= start_reward
 
-        if "filtered_velocity" == taken_col:
-            trial_average["speed"] = trial.values
-        else:
-            trial_average[taken_col] = trial.values
-
         # Assuming trial.values, window, and samples_per_second are defined
         # Calculate the maximum number of intervals that can fit within the available data points
         max_intervals = len(trial.values) * samples_per_second
@@ -905,11 +897,23 @@ def trial_collection(
         actual_stop = min(window[1], window[0] + max_intervals)
 
         # Generate the time range with the adjusted stop value
-        trial_average["times"] = np.around(np.arange(window[0], actual_stop, samples_per_second), 3)
+        times = np.arange(window[0], actual_stop, samples_per_second)
+        if len(times) != len(trial.values):
+            print('Different timing than values, ', len(times), len(trial.values))
+            trial = trial.values[:len(times)]
+        else:
+            trial = trial.values
+            
+        trial_average["times"] = times
 
+        if "filtered_velocity" == taken_col:
+            trial_average["speed"] = trial
+        else:
+            trial_average[taken_col] = trial
+            
         # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
-            trial_average[column] = np.repeat(row[column], len(trial.values))
+            trial_average[column] = np.repeat(row[column], len(trial))
 
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
 
