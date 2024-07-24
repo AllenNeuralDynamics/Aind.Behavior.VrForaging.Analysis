@@ -113,7 +113,7 @@ class ContinuousData:
             # self.torque_data = self.torque_loading()
             # self.odor_triggers = odor_data_harp_olfactometer(self.data, self.reward_sites)
 
-    def encoder_loading(self, parser: str = 'resampling'):
+    def encoder_loading(self, parser: str = 'filter'):
         ## Load data from encoder efficiently
         if self.current_version >= Version("0.3.0"):
             self.data["harp_treadmill"].streams.SensorData.load_from_file()
@@ -139,16 +139,16 @@ class ContinuousData:
             sensor_data['diff'] = sensor_data.Encoder.diff()
 
             if parser == 'filter':
-                sensor_data["velocity"] = (sensor_data["diff"] * converter) * 250 # To be replaced by dispatch rate whe it works
+                sensor_data["velocity"] = (sensor_data["diff"] * converter) * 250 # To be replaced by dispatch rate when it works
                 sensor_data["distance"] = (sensor_data["diff"] * converter)
-                sensor_data = processing.fir_filter(sensor_data, 5)
+                sensor_data = processing.fir_filter(sensor_data, 50)
                 encoder = sensor_data[['filtered_velocity']]
                 
             elif parser == 'resampling':
                 encoder= sensor_data['diff']
                 encoder = encoder.apply(lambda x : x * converter)
                 encoder.index = pd.to_datetime(encoder.index, unit="s")
-                encoder = encoder.resample("50ms").sum().interpolate(method="linear") / 0.050
+                encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
                 encoder.index = (encoder.index - pd.to_datetime(0))
                 encoder.index = encoder.index.total_seconds()
                 encoder = encoder.to_frame()
@@ -179,14 +179,14 @@ class ContinuousData:
             if parser == 'filter':
                 sensor_data["velocity"] = (sensor_data["Encoder"] * converter) * 1000 # To be replaced by dispatch rate whe it works
                 sensor_data["distance"] = (sensor_data["Encoder"] * converter)
-                sensor_data = processing.fir_filter(sensor_data, 5)
+                sensor_data = processing.fir_filter(sensor_data, 50)
                 encoder = sensor_data[['filtered_velocity']]
             
             elif parser == 'resampling':
                 encoder= sensor_data['Encoder']
                 encoder = encoder.apply(lambda x : x * converter)
                 encoder.index = pd.to_datetime(encoder.index, unit="s")
-                encoder = encoder.resample("4ms").sum().interpolate(method="linear") / 0.004
+                encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
                 encoder.index = (encoder.index - pd.to_datetime(0))
                 encoder.index = encoder.index.total_seconds()
                 encoder = encoder.to_frame()
@@ -1167,15 +1167,18 @@ def parse_dataframe(data: pd.DataFrame):
     # Crop and rename columns
     active_site = active_site[["label", "start_position", "length"]]
     reward_sites = active_site[active_site["label"] == "RewardSite"]
-
+    if reward_sites.empty:
+        print('No reward sites found')
+        return reward_sites, active_site, data["config"]
+        
     # Patch initialization
     data["software_events"].streams.ActivePatch.load_from_file()
     patches = data["software_events"].streams.ActivePatch.data
 
     # Find responses to Reward site
     # Recover tones
-    choiceFeedback = ContinuousData(data).choice_feedback
-
+    choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
+    
     # Recover water delivery
     data["harp_behavior"].streams.OutputSet.load_from_file()
     data["harp_behavior"].streams.OutputClear.load_from_file()
