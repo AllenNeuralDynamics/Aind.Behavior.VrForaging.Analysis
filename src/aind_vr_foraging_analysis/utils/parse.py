@@ -105,6 +105,7 @@ class ContinuousData:
             self.encoder_data = self.encoder_loading()
             self.lick_onset = self.lick_onset_loading()
             self.choice_feedback = self.choice_feedback_loading()
+            self.lick_onset, self.lick_offset = self.lick_onset_loading()
             self.give_reward, self.pulse_duration, self.valve_output_pulse = (
                 self.water_valve_loading()
             )
@@ -157,22 +158,38 @@ class ContinuousData:
         else:
             self.data["harp_behavior"].streams.AnalogData.load_from_file()
             sensor_data = self.data["harp_behavior"].streams.AnalogData.data
-
-            wheel_size = (
-                self.data["config"]
-                .streams[self.rig]
-                .data["treadmill"]["settings"]["wheel_diameter"]
-            )
-            PPR = (
-                self.data["config"]
-                .streams[self.rig]
-                .data["treadmill"]["settings"]["pulses_per_revolution"]
-            )
-            invert_direction = (
-                self.data["config"]
-                .streams[self.rig]
-                .data["treadmill"]["settings"]["invert_direction"]
-            )
+            if 'settings' in self.data["config"].streams[self.rig].data["treadmill"].keys():
+                wheel_size = (
+                    self.data["config"]
+                    .streams[self.rig]
+                    .data["treadmill"]["settings"]["wheel_diameter"]
+                )
+                PPR = (
+                    self.data["config"]
+                    .streams[self.rig]
+                    .data["treadmill"]["settings"]["pulses_per_revolution"]
+                )
+                invert_direction = (
+                    self.data["config"]
+                    .streams[self.rig]
+                    .data["treadmill"]["settings"]["invert_direction"]
+                )
+            else:
+                wheel_size = (
+                    self.data["config"]
+                    .streams[self.rig]
+                    .data["treadmill"]["wheel_diameter"]
+                )
+                PPR = (
+                    self.data["config"]
+                    .streams[self.rig]
+                    .data["treadmill"]["pulses_per_revolution"]
+                )
+                invert_direction = (
+                    self.data["config"]
+                    .streams[self.rig]
+                    .data["treadmill"]["invert_direction"]
+                )
             
             converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
             
@@ -208,16 +225,19 @@ class ContinuousData:
     def lick_onset_loading(self):
         if "harp_lickometer" in self.data:
             self.data["harp_lickometer"].streams.LickState.load_from_file()
-            lick_onset = (
+            licks = (
                 self.data["harp_lickometer"].streams.LickState.data["Channel0"] == True
             )
-            lick_onset = lick_onset.loc[lick_onset == True]
+            lick_onset = licks.loc[licks == True]
+            lick_offset = licks.loc[licks == False]
+
         else:
             di_state = self.data["harp_behavior"].streams.DigitalInputState.data[
                 "DIPort0"
             ]
             lick_onset = di_state.loc[di_state == True]
-        return lick_onset
+            lick_offset = di_state.loc[di_state == False]
+        return lick_onset, lick_offset
 
     def water_valve_loading(self):
         # Find give reward event
@@ -645,7 +665,7 @@ def load_session_data(
         pass
     
     if 'UpdaterEvents' in os.listdir(session_path_behavior):
-        _out_dict["updater_events"] = data_io.OperationControlSource(
+        _out_dict["updater_events"] = data_io.SoftwareEventSource(
             path=session_path_behavior / "UpdaterEvents",
             name="updater_events",
             autoload=True)
