@@ -1309,6 +1309,7 @@ def parse_dataframe(data: pd.DataFrame) -> pd.DataFrame:
         #write novelty exception if else statement
         reward_sites["reward_amount"] = 0
         reward_sites["reward_available"] = 0
+        reward_sites["reward_delivered"] = 0
     return reward_sites, active_site, data["config"]
 
 

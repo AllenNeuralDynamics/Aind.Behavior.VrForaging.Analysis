@@ -727,6 +727,104 @@ def preward_estimates(
         plt.close(fig)
 
 
+# def velocity_traces_odor_entry(
+#     trial_summary,
+#     window: tuple = (-0.5, 2),
+#     max_range: int = 60,
+#     color_dict_label: dict = {
+#         "Ethyl Butyrate": "#d95f02",
+#         "Alpha-pinene": "#1b9e77",
+#         "Amyl Acetate": "#7570b3",
+#     },
+#     mean: bool = False,
+#     save: bool = False,
+# ):
+#     """Plots the speed traces for each odor label condition"""
+#     n_odors = trial_summary.odor_label.unique()
+    
+#     fig, ax1 = plt.subplots(
+#         1, len(n_odors), figsize=(len(n_odors) * 3.5, 4), sharex=True, sharey=True
+#     )
+
+#     for j, odor_label in enumerate(n_odors):
+#         if len(n_odors) != 1:
+#             ax = ax1[j]
+#             ax1[0].set_ylabel("Velocity (cm/s)")
+#         else:
+#             ax = ax1
+#             ax.set_ylabel("Velocity (cm/s)")
+
+#         ax.set_xlabel("Time after odor onset (s)")
+#         ax.set_title(f"Patch {odor_label}")
+#         ax.set_ylim(-13, max_range)
+#         ax.set_xlim(window)
+#         ax.hlines(
+#             5, window[0], window[1], color="black", linewidth=1, linestyles="dashed"
+#         )
+#         ax.fill_betweenx(
+#             np.arange(-20, max_range, 0.1),
+#             0,
+#             window[1],
+#             color=color_dict_label[odor_label],
+#             alpha=0.5,
+#             linewidth=0,
+#         )
+#         ax.fill_betweenx(
+#             np.arange(-20, max_range, 0.1),
+#             window[0],
+#             0,
+#             color="grey",
+#             alpha=0.3,
+#             linewidth=0,
+#         )
+
+#         df_results = (
+#             trial_summary.loc[
+#                 (trial_summary.odor_label == odor_label)
+#                 & (trial_summary.visit_number == 0)
+#             ]
+#             .groupby(["odor_sites", "times", "odor_label"])[["speed"]]
+#             .median()
+#             .reset_index()
+#         )
+
+#         if df_results.empty:
+#             continue
+
+#         sns.lineplot(
+#             x="times",
+#             y="speed",
+#             data=df_results,
+#             hue="odor_sites",
+#             palette=["black"] * df_results["odor_sites"].nunique(),
+#             legend=False,
+#             linewidth=0.4,
+#             alpha=0.4,
+#             ax=ax,
+#         )
+
+#         if mean:
+#             sns.lineplot(
+#                 x="times",
+#                 y="speed",
+#                 data=df_results,
+#                 color="black",
+#                 ci=None,
+#                 legend=False,
+#                 linewidth=2,
+#                 ax=ax,
+#             )
+
+#     sns.despine()
+#     plt.tight_layout()
+#     if save != False:
+#         save.savefig(fig)
+#     else:
+#         plt.show()
+
+#     plt.close(fig)
+
+#velocity traces for 10 seconds
 def velocity_traces_odor_entry(
     trial_summary,
     window: tuple = (-0.5, 2),
@@ -739,7 +837,7 @@ def velocity_traces_odor_entry(
     mean: bool = False,
     save: bool = False,
 ):
-    """Plots the speed traces for each odor label condition"""
+    """Plots the speed traces for each odor label condition, showing only the first 5 patches with color coding."""
     n_odors = trial_summary.odor_label.unique()
     
     fig, ax1 = plt.subplots(
@@ -778,6 +876,7 @@ def velocity_traces_odor_entry(
             linewidth=0,
         )
 
+        # Filter for the first patches
         df_results = (
             trial_summary.loc[
                 (trial_summary.odor_label == odor_label)
@@ -788,26 +887,40 @@ def velocity_traces_odor_entry(
             .reset_index()
         )
 
-        if df_results.empty:
+        # Get the first unique patches
+        unique_sites = df_results['odor_sites'].unique()
+        first_sites = unique_sites[:10]
+        
+        df_results_filtered = df_results[df_results['odor_sites'].isin(first_sites)]
+
+        if df_results_filtered.empty:
             continue
 
+        # Generate a magma palette with enough colors
+        num_sites = len(first_sites)
+        palette = sns.color_palette("magma", n_colors=num_sites)
+        site_color_mapping = dict(zip(first_sites, palette))
+
+        # Plot the individual traces with color mapping
         sns.lineplot(
             x="times",
             y="speed",
-            data=df_results,
+            data=df_results_filtered,
             hue="odor_sites",
-            palette=["black"] * df_results["odor_sites"].nunique(),
+            palette=site_color_mapping,
             legend=False,
-            linewidth=0.4,
-            alpha=0.4,
+            linewidth=1,
+            alpha=0.7,
             ax=ax,
         )
 
         if mean:
+            # Compute mean speed trace for the first 5 patches
+            df_mean = df_results_filtered.groupby('times')['speed'].mean().reset_index()
             sns.lineplot(
                 x="times",
                 y="speed",
-                data=df_results,
+                data=df_mean,
                 color="black",
                 ci=None,
                 legend=False,
@@ -817,7 +930,7 @@ def velocity_traces_odor_entry(
 
     sns.despine()
     plt.tight_layout()
-    if save != False:
+    if save:
         save.savefig(fig)
     else:
         plt.show()
