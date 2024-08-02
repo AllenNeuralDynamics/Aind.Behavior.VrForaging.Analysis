@@ -4,7 +4,7 @@ from typing import Literal, Tuple
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
-from scipy.signal import firwin, lfilter
+from scipy.signal import firwin, filtfilt
 
 
 def distinct_until_changed_state(
@@ -57,7 +57,7 @@ def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000 / 2.0):
     fir_coeff = firwin(num_taps, cutoff_hz / nyq_rate)
 
     # Use lfilter to filter the signal with the FIR filter
-    data["filtered_velocity"] = lfilter(fir_coeff, 1.0, data["velocity"].values)
+    data["filtered_velocity"] = filtfilt(fir_coeff, 1.0, data["velocity"].values)
 
     return data
 

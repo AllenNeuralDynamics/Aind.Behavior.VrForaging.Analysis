@@ -278,7 +278,7 @@ def segmented_raster_vertical(
     odors.extend([label_2, label_3, label_6, label_4, label_5])
     ax1.set_ylim(-1, max(reward_sites.visit_number) + 1)
 
-    if len(reward_sites["odor_label"].unique()) != 1:
+    if len(reward_sites["odor_label"].unique()) != 1 and len(reward_sites["odor_label"].unique()) != 2:
         ax2 = plt.subplot(gs[1, 0])
         ax3 = plt.subplot(gs[1, 1])
         ax4 = plt.subplot(gs[1, 2])
@@ -320,13 +320,8 @@ def segmented_raster_vertical(
                 ax.set_xlabel("Patch number")
 
     fig.tight_layout()
-    plt.legend(
-        handles=odors,
-        loc="lower right",
-        bbox_to_anchor=(0.95, -1.25),
-        fontsize=12,
-        ncol=3,
-    )
+    plt.legend(handles=odors, loc='right', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=2)
+
     sns.despine()
 
     if save != False:
@@ -647,7 +642,6 @@ def preward_estimates(
         y="reward_delivered",
         hue="odor_label",
         palette=color_dict_label,
-        order=[list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]],
         data=summary,
         showfliers=False,
         ax=ax,
@@ -657,7 +651,6 @@ def preward_estimates(
         y="reward_delivered",
         hue="odor_label",
         palette=["black", "black", "black"],
-        order=[list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]],
         data=summary,
         ax=ax,
         linewidth=0.2,
@@ -675,7 +668,6 @@ def preward_estimates(
         y="visit_number",
         hue="odor_label",
         palette=color_dict_label,
-        order=[list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]],
         data=summary,
         showfliers=False,
         ax=ax,
@@ -685,7 +677,6 @@ def preward_estimates(
         y="visit_number",
         hue="odor_label",
         palette=["black", "black", "black"],
-        order=[list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]],
         data=summary,
         ax=ax,
         linewidth=0.2,
@@ -704,7 +695,6 @@ def preward_estimates(
         y="reward_probability",
         hue="odor_label",
         palette=color_dict_label,
-        order=[list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]],
         data=summary,
         showfliers=False,
         ax=ax,
@@ -714,7 +704,6 @@ def preward_estimates(
         y="reward_probability",
         hue="odor_label",
         palette=["black", "black", "black"],
-        order=[list(color_dict_label.keys())[0], list(color_dict_label.keys())[1]],
         data=summary,
         ax=ax,
         linewidth=0.2,
@@ -738,25 +727,137 @@ def preward_estimates(
         plt.close(fig)
 
 
+# def velocity_traces_odor_entry(
+#     trial_summary,
+#     window: tuple = (-0.5, 2),
+#     max_range: int = 60,
+#     color_dict_label: dict = {
+#         "Ethyl Butyrate": "#d95f02",
+#         "Alpha-pinene": "#1b9e77",
+#         "Amyl Acetate": "#7570b3",
+#     },
+#     mean: bool = False,
+#     save: bool = False,
+# ):
+#     """Plots the speed traces for each odor label condition"""
+#     n_odors = trial_summary.odor_label.unique()
+    
+#     fig, ax1 = plt.subplots(
+#         1, len(n_odors), figsize=(len(n_odors) * 3.5, 4), sharex=True, sharey=True
+#     )
+
+#     for j, odor_label in enumerate(n_odors):
+#         if len(n_odors) != 1:
+#             ax = ax1[j]
+#             ax1[0].set_ylabel("Velocity (cm/s)")
+#         else:
+#             ax = ax1
+#             ax.set_ylabel("Velocity (cm/s)")
+
+#         ax.set_xlabel("Time after odor onset (s)")
+#         ax.set_title(f"Patch {odor_label}")
+#         ax.set_ylim(-13, max_range)
+#         ax.set_xlim(window)
+#         ax.hlines(
+#             5, window[0], window[1], color="black", linewidth=1, linestyles="dashed"
+#         )
+#         ax.fill_betweenx(
+#             np.arange(-20, max_range, 0.1),
+#             0,
+#             window[1],
+#             color=color_dict_label[odor_label],
+#             alpha=0.5,
+#             linewidth=0,
+#         )
+#         ax.fill_betweenx(
+#             np.arange(-20, max_range, 0.1),
+#             window[0],
+#             0,
+#             color="grey",
+#             alpha=0.3,
+#             linewidth=0,
+#         )
+
+#         df_results = (
+#             trial_summary.loc[
+#                 (trial_summary.odor_label == odor_label)
+#                 & (trial_summary.visit_number == 0)
+#             ]
+#             .groupby(["odor_sites", "times", "odor_label"])[["speed"]]
+#             .median()
+#             .reset_index()
+#         )
+
+#         if df_results.empty:
+#             continue
+
+#         sns.lineplot(
+#             x="times",
+#             y="speed",
+#             data=df_results,
+#             hue="odor_sites",
+#             palette=["black"] * df_results["odor_sites"].nunique(),
+#             legend=False,
+#             linewidth=0.4,
+#             alpha=0.4,
+#             ax=ax,
+#         )
+
+#         if mean:
+#             sns.lineplot(
+#                 x="times",
+#                 y="speed",
+#                 data=df_results,
+#                 color="black",
+#                 ci=None,
+#                 legend=False,
+#                 linewidth=2,
+#                 ax=ax,
+#             )
+
+#     sns.despine()
+#     plt.tight_layout()
+#     if save != False:
+#         save.savefig(fig)
+#     else:
+#         plt.show()
+
+#     plt.close(fig)
+
+#velocity traces for 10 seconds
 def velocity_traces_odor_entry(
     trial_summary,
     window: tuple = (-0.5, 2),
-    max_range: int = 60,
     color_dict_label: dict = {
         "Ethyl Butyrate": "#d95f02",
         "Alpha-pinene": "#1b9e77",
         "Amyl Acetate": "#7570b3",
     },
+    y: str = "speed",
+    y_label: str = "Velocity (cm/s)",
+    n_sites: int = 10,
+    cmap: str = None,
     mouse: str = "mouse",
     session: str = "session",
     mean: bool = False,
     save: bool = False,
+    y_lims: tuple = (-13, 60),
 ):
-    """Plots the speed traces for each odor label condition"""
-    n_odors = []
-    for key in color_dict_label.keys():
-        n_odors.append(key)
+    """Plots the traces for each odor label condition, showing only the first n patches with color coding.
+    plots individual trials as thin lines, and the average as a thick black line.
+    Traces can be speed or odor data.
 
+    window: time window, in seconds, around each odor site start to plot the traces
+    y: column of trial_summary to plot on y axis
+    y_label: label for y axis
+    n_sites: number of patches to plot
+    mean: whether to plot the mean trace
+    save: whether to save the figure or not 
+    
+
+    """
+    n_odors = trial_summary.odor_label.unique()
+    
     fig, ax1 = plt.subplots(
         1, len(n_odors), figsize=(len(n_odors) * 3.5, 4), sharex=True, sharey=True
     )
@@ -764,20 +865,21 @@ def velocity_traces_odor_entry(
     for j, odor_label in enumerate(n_odors):
         if len(n_odors) != 1:
             ax = ax1[j]
-            ax1[0].set_ylabel("Velocity (cm/s)")
+            ax1[0].set_ylabel(y_label)
         else:
             ax = ax1
-            ax.set_ylabel("Velocity (cm/s)")
+            ax.set_ylabel(y_label)
 
         ax.set_xlabel("Time after odor onset (s)")
         ax.set_title(f"Patch {odor_label}")
-        ax.set_ylim(-13, max_range)
+        ax.set_ylim(y_lims)
         ax.set_xlim(window)
         ax.hlines(
             5, window[0], window[1], color="black", linewidth=1, linestyles="dashed"
         )
+
         ax.fill_betweenx(
-            np.arange(-20, max_range, 0.1),
+            np.arange(y_lims[0], y_lims[1], 0.1),
             0,
             window[1],
             color=color_dict_label[odor_label],
@@ -785,7 +887,7 @@ def velocity_traces_odor_entry(
             linewidth=0,
         )
         ax.fill_betweenx(
-            np.arange(-20, max_range, 0.1),
+            np.arange(y_lims[0], y_lims[1], 0.1),
             window[0],
             0,
             color="grey",
@@ -793,36 +895,54 @@ def velocity_traces_odor_entry(
             linewidth=0,
         )
 
+        # Filter for the first patches
         df_results = (
             trial_summary.loc[
                 (trial_summary.odor_label == odor_label)
                 & (trial_summary.visit_number == 0)
             ]
-            .groupby(["odor_sites", "times", "odor_label"])[["speed"]]
+            .groupby(["odor_sites", "times", "odor_label"])[[y]]
             .median()
             .reset_index()
         )
 
-        if df_results.empty:
+        # Get the first unique patches
+        unique_sites = df_results['odor_sites'].unique()
+        first_sites = unique_sites[:n_sites]
+        
+        df_results_filtered = df_results[df_results['odor_sites'].isin(first_sites)]
+
+        if df_results_filtered.empty:
             continue
 
+        # Generate a magma palette with enough colors
+        num_sites = len(first_sites)
+        if cmap: # if colormap is provided  
+            palette = sns.color_palette(cmap, n_colors=num_sites)
+        else:
+            palette = ['black'] * num_sites
+        site_color_mapping = dict(zip(first_sites, palette))
+
+        # Plot the individual traces with color mapping
         sns.lineplot(
             x="times",
-            y="speed",
-            data=df_results,
+            y=y,
+            data=df_results_filtered,
             hue="odor_sites",
-            palette=["black"] * df_results["odor_sites"].nunique(),
+            palette=site_color_mapping,
             legend=False,
-            linewidth=0.4,
-            alpha=0.4,
+            linewidth=1,
+            alpha=0.7,
             ax=ax,
         )
 
         if mean:
+            # Compute mean speed trace for the first patches
+            df_mean = df_results_filtered.groupby('times')[y].mean().reset_index()
             sns.lineplot(
                 x="times",
-                y="speed",
-                data=df_results,
+                y=y,
+                data=df_mean,
                 color="black",
                 ci=None,
                 legend=False,
@@ -834,20 +954,64 @@ def velocity_traces_odor_entry(
     plt.tight_layout()
     plt.suptitle(mouse + "_" + session) 
     if save != False:
+    if save:
         save.savefig(fig)
     else:
         plt.show()
 
     plt.close(fig)
 
+def summary_withinsession_values(reward_sites, 
+                                 color_dict_label = {'Ethyl Butyrate': '#d95f02', 'Alpha-pinene': '#1b9e77', 'Amyl Acetate': '#7570b3',
+                                                     '2-Heptanone' : '#1b9e77', 'Methyl Acetate': '#d95f02', 'Fenchone': '#7570b3', '2,3-Butanedione': '#e7298a'}, 
+                                 save=None):
 
+    fig, ax = plt.subplots(3,2,figsize=(16,10), sharex=True)
+
+    df = reward_sites.loc[(reward_sites.last_site == 1)&(reward_sites.visit_number != 0)].groupby(['active_patch', 'odor_label']).agg({'reward_probability':'min','visit_number':'mean', 'cumulative_rewards': 'max', 'consecutive_rewards': 'max', 'cumulative_failures': 'max', 'consecutive_failures': 'max'}).reset_index()
+
+    ax[0][0].set_ylabel('P(reward) \n when leaving')            
+    ax[0][0].set_ylim(-0.1,1.1)
+
+    # df = df.groupby(['active_patch','odor_label']).agg({'visit_number':'sum', 'reward_probability':'mean'}).reset_index()      
+    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='reward_probability', ax=ax[0][0], palette=color_dict_label,  legend=False)
+    ax[0][0].set_ylabel('P(reward) \n when leaving')            
+    ax[0][0].set_ylim(-0.1,1.1)
+
+    sns.scatterplot(df, x='active_patch', hue='odor_label', sizes=(30, 500), y='visit_number', ax=ax[0][1], palette=color_dict_label,  legend=False)
+    ax[0][1].set_ylabel('Total stops')            
+
+    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='consecutive_rewards', ax=ax[1][0], palette=color_dict_label,  legend=False)
+    ax[1][0].set_ylabel('Consecutive rewards')            
+
+    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='cumulative_rewards', ax=ax[1][1], palette=color_dict_label,  legend=False)
+    ax[1][1].set_ylabel('Cumulative rewards')            
+
+    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='cumulative_failures', ax=ax[2][0], palette=color_dict_label,  legend=False)
+    ax[2][0].set_ylabel('Cumulative failures')            
+
+    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='consecutive_failures', ax=ax[2][1], palette=color_dict_label,  legend=False)
+    ax[2][1].set_ylabel('Consecutive failures')            
+
+    ax[2][0].set_xlabel('Patch number')
+    ax[2][1].set_xlabel('Patch number')
+
+    plt.tight_layout()
+    sns.despine()
+    if save:
+        save.savefig(fig)
+        plt.close(fig)
+    else:
+        plt.show()
+        
 def trial_collection(
     reward_sites: pd.DataFrame,
     continuous_data: pd.DataFrame,
     mouse: str,
     session: str,
     aligned: str = 'index',
-    window: tuple = (-0.5, 2),
+    cropped_to_length: bool = False,
+    window: list = [-0.5, 2],
     taken_col: str = "filtered_velocity",
 ):
     """
@@ -881,10 +1045,15 @@ def trial_collection(
     
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
-    for start_reward, row in reward_sites.iterrows():
+    for start_reward, row in reward_sites.iloc[:-1].iterrows():
+        if cropped_to_length:
+            window[0] = row['time_since_entry']
+            window[1] = row['exit_epoch']
+            
         trial_average = pd.DataFrame()
-        if aligned is not 'index':
-            trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index <= row[aligned] + window[1])][taken_col]
+        if aligned != 'index':
+            
+            trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index < row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
         else:
             trial = continuous_data.loc[
@@ -902,18 +1071,20 @@ def trial_collection(
         # Generate the time range with the adjusted stop value
         times = np.arange(window[0], actual_stop, samples_per_second)
         if len(times) != len(trial.values):
-            print('Different timing than values, ', len(times), len(trial.values))
+            # print('Different timing than values, ', len(times), len(trial.values))
             trial = trial.values[:len(times)]
         else:
             trial = trial.values
             
         trial_average["times"] = times
 
-        if "filtered_velocity" == taken_col:
-            trial_average["speed"] = trial
+        if len(trial) == len(trial_average["times"]):
+            if "filtered_velocity" == taken_col:
+                trial_average["speed"] = trial
+            else:
+                trial_average[taken_col] = trial
         else:
-            trial_average[taken_col] = trial
-            
+            continue
         # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
             trial_average[column] = np.repeat(row[column], len(trial))
@@ -923,6 +1094,82 @@ def trial_collection(
     trial_summary["mouse"] = mouse
     trial_summary["session"] = session
     return trial_summary
+
+
+def raster_with_velocity(
+    active_site: pd.DataFrame,
+    stream_data: pd.DataFrame,
+    save = None,
+    color_dict_label: dict = {
+        "Ethyl Butyrate": "#d95f02",
+        "Alpha-pinene": "#1b9e77",
+        "Amyl Acetate": "#7570b3",
+    },
+):
+
+    active_patch = -1
+    first_entry = True
+    patch_onset = pd.DataFrame()
+    for index, row in active_site.iterrows():
+        if row['label'] == 'InterSite' and active_patch == row['active_patch'] and first_entry:
+            new_rows = pd.DataFrame([
+            {'active_patch': row['active_patch'], 'patch_onset': row.name}])
+            patch_onset = pd.concat([patch_onset, new_rows])
+            first_entry = False
+            
+        if active_patch != row['active_patch']:
+            active_patch = row['active_patch']
+            first_entry = True
+    
+    merged_df = pd.merge_asof(active_site, patch_onset, on='active_patch')
+    active_site['patch_onset'] = merged_df['patch_onset'].values
+    active_site['time_since_entry'] = active_site.index - active_site['patch_onset']
+    active_site['exit_epoch'] = active_site['time_since_entry'] + active_site['duration_epoch']
+    test_df = active_site.groupby('active_patch').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
+    test_df.reset_index(inplace=True)
+    test_df.fillna(15, inplace=True)   
+    
+    trial_summary = trial_collection(test_df, stream_data.encoder_data, active_site.mouse.unique()[0], active_site.session.unique()[0], aligned='patch_onset', cropped_to_length=True)
+
+    fig, ax1 = plt.subplots(figsize=(14, 30))
+    ax2 = ax1.twinx()
+
+    max_speed = np.quantile(trial_summary['speed'],0.99)
+    for index, row in active_site.iterrows():
+        if row['label'] == 'InterPatch':
+            color = '#b3b3b3'
+        elif row['label'] == 'InterSite':
+            color = '#808080'
+            
+        if row['label'] == 'RewardSite':
+            if row['visit_number'] == 0:
+                ax1.scatter(0, row.active_patch, color=color_dict_label[row.odor_label], marker='s', s=60, edgecolor='black', linewidth=0.0)
+
+            if row["reward_delivered"] == 1 and row["has_choice"] == True:
+                color = "steelblue"
+            elif row["reward_delivered"] == 0 and row["has_choice"] == True:
+                color = "pink"
+            else:
+                color = 'yellow'
+        ax1.barh(int(row['active_patch']), left=row.time_since_entry, height=0.85, width=row.duration_epoch, color=color,  linewidth=0.5)
+        
+        if row['time_since_entry'] <0:
+            current_trial = trial_summary[trial_summary['active_patch'] == row['active_patch']]
+
+            ax2.plot(current_trial['times'], current_trial['speed']+(max_speed*(row['active_patch']))+max_speed/1.8, color='black', linewidth=0.8, alpha=0.8)
+            ax2.set_ylim(0, max_speed*(active_site['active_patch'].max()+2))
+
+    ax1.set_xlabel("Time (s)")
+    ax1.set_ylabel("Patch number")
+    sns.despine()
+    ax1.set_ylim(-1, max(active_site.active_patch) + 1)
+    ax1.set_xlim(active_site.groupby('active_patch').time_since_entry.min().min(), active_site.groupby('active_patch').duration_epoch.sum().max())
+
+    if save:
+        save.savefig(fig)
+        plt.close(fig)
+    else:
+        plt.show()
 
 
 # def session_raster_segmented(reward_sites,config, save=False):
