@@ -700,7 +700,7 @@ def preward_estimates(
 
     ax = plt.subplot(1, 3, 3)
     sns.boxplot(
-        x="odor_label",
+       x="odor_label",
         y="reward_probability",
         hue="odor_label",
         palette=color_dict_label,
@@ -747,6 +747,8 @@ def velocity_traces_odor_entry(
         "Alpha-pinene": "#1b9e77",
         "Amyl Acetate": "#7570b3",
     },
+    mouse: str = "mouse",
+    session: str = "session",
     mean: bool = False,
     save: bool = False,
 ):
@@ -830,6 +832,7 @@ def velocity_traces_odor_entry(
 
     sns.despine()
     plt.tight_layout()
+    plt.suptitle(mouse + "_" + session) 
     if save != False:
         save.savefig(fig)
     else:
