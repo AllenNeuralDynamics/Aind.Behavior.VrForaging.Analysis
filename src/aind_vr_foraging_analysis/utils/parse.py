@@ -142,7 +142,7 @@ class ContinuousData:
                 sensor_data["velocity"] = (sensor_data["diff"] * converter) * 250 # To be replaced by dispatch rate when it works
                 sensor_data["distance"] = (sensor_data["diff"] * converter)
                 sensor_data = processing.fir_filter(sensor_data, 50)
-                encoder = sensor_data[['filtered_velocity']]
+                encoder = sensor_data[['filtered_velocity', 'distance']]
                 
             elif parser == 'resampling':
                 encoder= sensor_data['diff']
@@ -180,7 +180,7 @@ class ContinuousData:
                 sensor_data["velocity"] = (sensor_data["Encoder"] * converter) * 1000 # To be replaced by dispatch rate whe it works
                 sensor_data["distance"] = (sensor_data["Encoder"] * converter)
                 sensor_data = processing.fir_filter(sensor_data, 50)
-                encoder = sensor_data[['filtered_velocity']]
+                encoder = sensor_data[['filtered_velocity', 'distance']]
             
             elif parser == 'resampling':
                 encoder= sensor_data['Encoder']
