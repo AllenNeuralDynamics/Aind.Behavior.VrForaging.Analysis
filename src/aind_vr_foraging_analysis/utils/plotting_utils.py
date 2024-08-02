@@ -691,7 +691,7 @@ def preward_estimates(
 
     ax = plt.subplot(1, 3, 3)
     sns.boxplot(
-        x="odor_label",
+       x="odor_label",
         y="reward_probability",
         hue="odor_label",
         palette=color_dict_label,
@@ -837,6 +837,8 @@ def velocity_traces_odor_entry(
     y_label: str = "Velocity (cm/s)",
     n_sites: int = 10,
     cmap: str = None,
+    mouse: str = "mouse",
+    session: str = "session",
     mean: bool = False,
     save: bool = False,
     y_lims: tuple = (-13, 60),
@@ -950,6 +952,8 @@ def velocity_traces_odor_entry(
 
     sns.despine()
     plt.tight_layout()
+    plt.suptitle(mouse + "_" + session) 
+    if save != False:
     if save:
         save.savefig(fig)
     else:
