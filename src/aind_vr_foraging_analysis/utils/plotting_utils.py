@@ -342,7 +342,7 @@ def speed_traces_value(
 
     n_odors = len(trial_summary.odor_label.unique())
     fig, ax = plt.subplots(
-        n_odors, 5, figsize=(18, n_odors * 4), sharex=True, sharey=True
+        n_odors, 5, figsize=(18, n_odors * 5), sharex=True, sharey=True
     )
     colors = ["crimson", "darkgreen"]
     for j in range(n_odors):
