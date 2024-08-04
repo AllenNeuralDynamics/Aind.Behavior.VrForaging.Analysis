@@ -954,8 +954,7 @@ def velocity_traces_odor_entry(
 
     sns.despine()
     plt.tight_layout()
-    plt.suptitle(f"{mouse}_{session}", y=1.05) 
-
+    plt.suptitle(mouse + "_" + session) 
     if save:
         plt.savefig(save)
     else:
