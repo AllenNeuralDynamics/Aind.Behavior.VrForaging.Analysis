@@ -15,6 +15,7 @@ dynamic = ["version"]
 
 dependencies = [
   "harp-python@git+https://github.com/harp-tech/harp-python",
+
   "pandas",
   "numpy<2.0.0",
   "jupyter",
@@ -26,6 +27,7 @@ dependencies = [
   "scikit-learn",
   "tabulate",
   "statsmodels"
+  "aind-behavior-curriculum"
 ]
 
 [project.optional-dependencies]
