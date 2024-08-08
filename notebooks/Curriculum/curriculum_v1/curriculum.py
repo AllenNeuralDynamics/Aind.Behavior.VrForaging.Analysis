@@ -22,8 +22,8 @@ from aind_behavior_curriculum import (
     get_task_types,
 )
 
-
-
+import aind_behavior_vr_foraging.task_logic as task_logic
+import task as task
 # --- TASKS ---
 class TaskAParameters(TaskParameters):
     field_a: int = Field(default=0, validate_default=True)
@@ -34,10 +34,8 @@ class TaskA(Task):
         ..., description="Fill w/ Parameter Defaults", validate_default=True
     )
 
-
 class TaskBParameters(TaskParameters):
     field_b: float = Field(default=0.0)
-
 
 class TaskB(Task):
     name: Literal["Stage B"] = "Stage B"
@@ -251,9 +249,7 @@ Tasks = get_task_types()
 
 class MyCurriculum(Curriculum):
     name: Literal["My Curriculum"] = "My Curriculum"
-    # graph: StageGraph[Union[TaskA, TaskB, Graduated]] = Field(default=StageGraph())
     graph: StageGraph[Tasks] = Field(default=StageGraph[Tasks]())  # type: ignore
-
 
 def construct_curriculum() -> MyCurriculum:
     """

@@ -247,4 +247,5 @@ def ExponentialProbabilityReward(amount_drop: int = 5, available_water: int = 50
                                             amount= vr_task_logic.RewardFunction(vr_task_logic.ConstantFunction(value=amount_drop)),
                                             probability=vr_task_logic.RewardFunction(vr_task_logic.PowerFunction(mininum=0, maximum= maximum_p, a = maximum_p, b=2.718281828459045, c=c)),
                                             available=vr_task_logic.RewardFunction(vr_task_logic.ConstantFunction(value=amount_drop)),      
-                                            depletion_rule=vr_task_logic.DepletionRule.ON_REWARD,),   
+                                            depletion_rule=vr_task_logic.DepletionRule.ON_REWARD,),
+    )
