@@ -1,26 +1,27 @@
-# IPython magig  tools
-%load_ext autoreload
-%autoreload 2
-
 import os
 from typing import Dict
 from os import PathLike
 from pathlib import Path
 from pydantic import Field
+import pandas as pd
+import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
 
 from aind_behavior_curriculum import (
     Metrics,
 )
 
-from aind_vr_foraging_analysis.utils import parse
+from aind_vr_foraging_analysis.utils import parse, plotting_utils as plotting
+from aind_vr_foraging_analysis.utils.supplementary_parsing import AddExtraColumns   
 
-import pandas as pd
-import numpy as np
+pdf_path = r'Z:\scratch\vr-foraging\sessions'
 
 class MetricsVrForaging:
     def __init__(self, session_path: PathLike):
         self.session_path = Path(session_path)
         self.data = parse.load_session_data(self.session_path)
+        self.session = self.data['config'].streams.session_input.data['date'][:10]
+        self.mouse = int(self.data['config'].streams.session_input.data['subject'])
         self.reward_sites, self.active_site, self.config = parse.parse_dataframe(self.data)
         self.df = self.retrieve_metrics()
 
@@ -109,6 +110,67 @@ class MetricsVrForaging:
     def get_metrics(self):
         return self.df
 
+    def get_mouse_and_session(self):
+        return self.mouse, self.session
+    
+    def run_pdf_summary(self):
+        color1='#d95f02'
+        color2='#1b9e77'
+        color3='#7570b3'
+        color4='#e7298a'
+
+        color_dict_label = {'Ethyl Butyrate': color1, 'Alpha-pinene': color2, 'Amyl Acetate': color3, 'Eugenol' : color3,
+                            '2-Heptanone' : color2, 'Methyl Acetate': color1, 'Fenchone': color3, '2,3-Butanedione': color4}
+        
+        stream_data = parse.ContinuousData(self.data)
+        encoder_data = stream_data.encoder_data
+        odor_sites = AddExtraColumns(self.reward_sites, self.active_site, run_on_init=True).reward_sites
+        active_site = AddExtraColumns(odor_sites, self.active_site).add_time_previous_intersite_interpatch()
+        active_site['duration_epoch'] = active_site.index.to_series().diff().shift(-1)
+        active_site['mouse'] = self.mouse
+        active_site['session'] = self.session
+        
+        # Remove segments where the mouse was disengaged
+        last_engaged_patch = odor_sites['active_patch'][odor_sites['skipped_count'] >= 10].min()
+        if pd.isna(last_engaged_patch):
+            last_engaged_patch = odor_sites['active_patch'].max()
+            
+        odor_sites['engaged'] = odor_sites['active_patch'] <= last_engaged_patch  
+        
+        # Recover color palette
+        dict_odor = {}
+        list_patches = parse.TaskSchemaProperties(self.data).patches
+        for i, patches in enumerate(list_patches):
+            # color_dict_label[patches['label']] = odor_list_color[i]
+            dict_odor[i] = patches['label']
+        
+        trial_summary = plotting.trial_collection(odor_sites[['has_choice', 'visit_number', 'odor_label', 'odor_sites', 'reward_delivered','depleted',
+                                                                'reward_probability','reward_amount','reward_available']], 
+                                                  encoder_data, 
+                                                  self.mouse, 
+                                                  self.session, 
+                                                  window=(-1,3)
+                                                )
+        
+        # Save each figure to a separate page in the PDF
+        pdf_filename = f'{self.mouse}_{self.session}_summary.pdf'
+        with PdfPages(pdf_path+"\\"+pdf_filename) as pdf:
+            plotting.raster_with_velocity(active_site, stream_data, color_dict_label=color_dict_label, save=pdf)
+            plotting.segmented_raster_vertical(odor_sites, 
+                                            self.data['config'].streams['tasklogic_input'].data, 
+                                            save=pdf, 
+                                            color_dict_label=color_dict_label)
+            plotting.summary_withinsession_values(odor_sites, 
+                                    color_dict_label = color_dict_label, 
+                                    save=pdf)
+            plotting.speed_traces_efficient(trial_summary, self.mouse, self.session,  save=pdf)
+            plotting.preward_estimates(odor_sites, 
+                                    color_dict_label = color_dict_label, 
+                                    save=pdf)
+            plotting.speed_traces_value(trial_summary, self.mouse, self.session, condition = 'reward_probability', save=pdf) 
+            plotting.velocity_traces_odor_entry(trial_summary, max_range = trial_summary.speed.max(), color_dict_label=color_dict_label, save=pdf)
+
+            plotting.length_distributions(self.active_site, self.data, delay=True, save=pdf)
 
 class ExampleMetrics(Metrics):
     """
@@ -122,8 +184,9 @@ class ExampleMetrics(Metrics):
     visited_patches: float = Field(default=0)
     water: float = Field(default=0)
     
-
 session_path = r'Z:\scratch\vr-foraging\data\716455\20240413T111724'
-df = MetricsVrForaging(session_path).get_metrics()
+parsed_session = MetricsVrForaging(session_path)
+df = parsed_session.get_metrics()
+parsed_session.run_pdf_summary()
 ExampleMetrics(odor_sites=df.odor_sites_travelled, rewarded_sites_max=df.rewarded_sites_in_max_stop, visited_patches=df.total_patches_visited)
 
