@@ -183,7 +183,7 @@ class ExampleMetrics(Metrics):
     rewarded_sites_max: float = Field(default=0)
     visited_patches: float = Field(default=0)
     water: float = Field(default=0)
-    
+
 session_path = r'Z:\scratch\vr-foraging\data\716455\20240413T111724'
 parsed_session = MetricsVrForaging(session_path)
 df = parsed_session.get_metrics()

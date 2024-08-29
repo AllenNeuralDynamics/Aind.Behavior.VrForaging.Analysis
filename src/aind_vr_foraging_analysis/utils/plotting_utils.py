@@ -440,7 +440,7 @@ def speed_traces_value(
                 ax1[i + 2].text(1.2, 75, f"Not stopped", fontsize=12)
 
     sns.despine()
-    plt.suptitle(mouse + "_" + session)
+    plt.suptitle(str(mouse) + "_" + str(session))
     plt.tight_layout()
 
     if save != False:
@@ -606,7 +606,7 @@ def speed_traces_efficient(
         )
 
     sns.despine()
-    plt.suptitle(mouse + "_" + session + "_" + odor)
+    plt.suptitle(str(mouse) + "_" + str(session) + "_" + odor)
     plt.tight_layout()
 
     if save != False:
@@ -992,11 +992,12 @@ def raster_with_velocity(
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
     
+    print(stream_data.encoder_data)
     trial_summary = trial_collection(test_df, stream_data.encoder_data, active_site.mouse.unique()[0], active_site.session.unique()[0], aligned='patch_onset', cropped_to_length=True)
 
     fig, ax1 = plt.subplots(figsize=(14, 30))
     ax2 = ax1.twinx()
-
+    print(trial_summary.columns)
     max_speed = np.quantile(trial_summary['speed'],0.99)
     for index, row in active_site.iterrows():
         if row['label'] == 'InterPatch':
@@ -1497,4 +1498,24 @@ def raster_plot(x_start, pdf):
     axs.yaxis.tick_right()
     axs.set_xlim([x_start, x_start + 80])
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
+def update_values(reward_sites, save = False):
+    fig, ax = plt.subplots(3,1, figsize=(10,10), sharex=True)
+    sns.lineplot(data=reward_sites, x='odor_sites', y='velocity_threshold_cms', color='black', ax=ax[0])
+    ax[0].set_ylabel('Velocity \n threshold (cm/s)')
+
+    sns.lineplot(data=reward_sites, x='odor_sites', y='delay_s', color='black', ax=ax[1])
+    ax[1].set_ylabel('Delay (s)')
+
+    sns.lineplot(data=reward_sites, x='odor_sites', y='stop_duration_s', color='black', ax=ax[2])
+    ax[2].set_ylabel('Stop duration (s)')
+    ax[2].set_xlabel('Odor sites')
+    sns.despine()
+    plt.tight_layout()
+    
+    if save:
+        save.savefig(fig)
+    else:
+        plt.show()
     plt.close(fig)

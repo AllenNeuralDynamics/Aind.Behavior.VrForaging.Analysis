@@ -589,10 +589,12 @@ def load_session_data(
     HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill/main/software/bonsai/device.yml")
     HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/software/bonsai/device.yml")
     HarpLickometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/software/bonsai/device.yml")
-
+    HarpStepperDriver = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml")
     session_path_behavior = session_path
     session_path_config = session_path
     suffix='Register__'
+    
+    # Work around the change in the folder structure
     if 'behavior' in os.listdir(session_path): 
         session_path_behavior = session_path / 'behavior'
         suffix=None
@@ -606,7 +608,7 @@ def load_session_data(
             name="behavior",
             autoload=False, 
             remove_suffix=suffix)
-    else:
+    elif 'Behavior' in os.listdir(session_path_behavior):
         print('Old behavior loading')
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
@@ -638,18 +640,35 @@ def load_session_data(
             name="sniffdetector", 
             autoload=False,
             remove_suffix=suffix)
+    
+    if 'StepperDriver.harp' in os.listdir(session_path_behavior):
+        _out_dict["harp_stepperdriver"] = data_io.HarpSource(
+            device=HarpStepperDriver, 
+            path=session_path_behavior / "StepperDriver.harp", 
+            name="stepper_driver", 
+            autoload=False,
+            remove_suffix=suffix)
         
-    _out_dict["software_events"] = data_io.SoftwareEventSource(
-        path=session_path_behavior / "SoftwareEvents",
-        name="software_events",
-        autoload=True)
+    if 'AnalogInput.harp' in os.listdir(session_path):
+        _out_dict["harp_analog"] = data_io.HarpSource(
+            device=HarpAnalogInput, 
+            path=session_path_behavior / "AnalogInput.harp", 
+            name="analog_input", 
+            autoload=False,
+            remove_suffix=suffix)
+    
+    if 'SoftwareEvents' in os.listdir(session_path_behavior):  
+        _out_dict["software_events"] = data_io.SoftwareEventSource(
+            path=session_path_behavior / "SoftwareEvents",
+            name="software_events",
+            autoload=True)
 
     # Load config old version
     if 'config.json' in os.listdir(session_path_config):
         with open(str(session_path_config)+'\config.json', 'r') as json_file:
             config = json.load(json_file)
             
-    else:
+    elif 'Config' in os.listdir(session_path_config):
         _out_dict["config"] = data_io.ConfigSource(
             path=session_path_config / "Config",
             name="config",
@@ -660,16 +679,12 @@ def load_session_data(
             path=session_path_behavior / "OperationControl",
             name="operation_control",
             autoload=True)
-    else:
-        pass
     
     if 'UpdaterEvents' in os.listdir(session_path_behavior):
         _out_dict["updater_events"] = data_io.SoftwareEventSource(
             path=session_path_behavior / "UpdaterEvents",
             name="updater_events",
             autoload=True)
-    else:
-        pass
     
     if 'Treadmill.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_treadmill"] = data_io.HarpSource(
@@ -677,8 +692,6 @@ def load_session_data(
             path=session_path_behavior / "Treadmill.harp", 
             name="treadmill", 
             autoload=False)
-    else:
-        pass
     
     return _out_dict
 
