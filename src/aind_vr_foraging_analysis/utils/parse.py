@@ -649,7 +649,7 @@ def load_session_data(
             autoload=False,
             remove_suffix=suffix)
         
-    if 'AnalogInput.harp' in os.listdir(session_path):
+    if 'AnalogInput.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_analog"] = data_io.HarpSource(
             device=HarpAnalogInput, 
             path=session_path_behavior / "AnalogInput.harp", 
