@@ -98,8 +98,10 @@ class ContinuousData:
         
         if 'schema_version' in self.data["config"].streams[self.rig].data:
             self.current_version=Version(self.data["config"].streams[self.rig].data['schema_version'])
-        else:
+        elif 'version' in self.data["config"].streams[self.rig].data:
             self.current_version=Version(self.data["config"].streams[self.rig].data['version'])
+        else:
+            self.current_version = Version("0.0.0")
 
         if load_continuous == True:
             self.encoder_data = self.encoder_loading()
@@ -174,20 +176,29 @@ class ContinuousData:
                     .data["treadmill"]["settings"]["invert_direction"]
                 )
             else:
+                if 'wheel_diameter' in self.data["config"].streams[self.rig].data["treadmill"].keys():
+                    wheel_diameter ="wheel_diameter"
+                    pulses = "pulses_per_revolution"
+                    invert = "invert_direction"
+                else:
+                    wheel_diameter = "wheelDiameter"
+                    pulses = "pulsesPerRevolution"
+                    invert = "invertDirection"
+                    
                 wheel_size = (
                     self.data["config"]
                     .streams[self.rig]
-                    .data["treadmill"]["wheel_diameter"]
+                    .data["treadmill"][wheel_diameter]
                 )
                 PPR = (
                     self.data["config"]
                     .streams[self.rig]
-                    .data["treadmill"]["pulses_per_revolution"]
+                    .data["treadmill"][pulses]
                 )
                 invert_direction = (
                     self.data["config"]
                     .streams[self.rig]
-                    .data["treadmill"]["invert_direction"]
+                    .data["treadmill"][invert]
                 )
             
             converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
@@ -195,7 +206,7 @@ class ContinuousData:
             if parser == 'filter':
                 sensor_data["velocity"] = (sensor_data["Encoder"] * converter) * 1000 # To be replaced by dispatch rate whe it works
                 sensor_data["distance"] = (sensor_data["Encoder"] * converter)
-                sensor_data = processing.fir_filter(sensor_data, 50)
+                sensor_data = processing.fir_filter(sensor_data, 'velocity', 50)
                 encoder = sensor_data[['filtered_velocity']]
             
             elif parser == 'resampling':
@@ -1123,7 +1134,7 @@ def parse_data_old(data, path):
     # ---------------------------------------------------- #
 
     # Add colum for site number
-    reward_sites.loc[:, "total_sites"] = np.arange(len(reward_sites))
+    reward_sites.loc[:, "odor_sites"] = np.arange(len(reward_sites))
     reward_sites.loc[:, "depleted"] = np.where(
         reward_sites["reward_available"] == 0, 1, 0
     )
@@ -1143,7 +1154,7 @@ def parse_data_old(data, path):
     # reward_sites['same_patch'] = np.where((reward_sites['next_patch'] != reward_sites['active_patch'])&(reward_sites['odor_label'] == reward_sites['next_odor'] ), 1, 0)
     # reward_sites.drop(columns=['next_patch', 'next_odor'], inplace=True)
 
-    encoder_data = processing.fir_filter(encoder_data, 5)
+    encoder_data = processing.fir_filter(encoder_data, 'velocity', cutoff_hz=5)
 
     if reward_sites.reward_available.max() >= 100:
         reward_sites["reward_available"] = 100
