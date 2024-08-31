@@ -111,7 +111,7 @@ class ContinuousData:
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
             # self.torque_data = self.torque_loading()
-            # self.odor_triggers = odor_data_harp_olfactometer(self.data, self.reward_sites)
+            self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def encoder_loading(self, parser: str = 'filter'):
         ## Load data from encoder efficiently
@@ -697,7 +697,7 @@ def load_session_data(
 
 
 ## ------------------------------------------------------------------------- ##
-def odor_data_harp_olfactometer(data, reward_sites):
+def odor_data_harp_olfactometer(data):
     """
     Process odor data from the Harp Olfactometer.
 
@@ -829,23 +829,23 @@ def odor_data_harp_olfactometer(data, reward_sites):
         new_row = {"odor_onset": onset, "odor_offset": np.nan, "patch_type": condition}
         odor_triggers.loc[len(odor_triggers)] = new_row
 
-    print(odor_triggers)
-    print(reward_sites)
-    reward_sites["odor_onset"] = np.nan
-    reward_sites["odor_offset"] = np.nan
-    try:
-        # assert np.any(
-        #     odor_triggers["condition"].values == reward_sites["odor_label"].values
-        # )
-        reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
-        reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
-    except:
-        reward_sites = reward_sites.iloc[:-1]
-        reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
-        reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
+    # print(odor_triggers)
+    # print(reward_sites)
+    # reward_sites["odor_onset"] = np.nan
+    # reward_sites["odor_offset"] = np.nan
+    # try:
+    #     # assert np.any(
+    #     #     odor_triggers["condition"].values == reward_sites["odor_label"].values
+    #     # )
+    #     reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
+    #     reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
+    # except:
+    #     reward_sites = reward_sites.iloc[:-1]
+    #     reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
+    #     reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
 
-    return reward_sites  ## ------------------------------------------------------------------------- ##
-
+    # return reward_sites  ## ------------------------------------------------------------------------- ##
+    return odor_triggers
 
 def parse_data_old(data, path):
     """
