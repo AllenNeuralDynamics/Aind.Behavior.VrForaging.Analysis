@@ -149,13 +149,16 @@ def plot_FFT(data, sampling_rate=1000, color="black", label="test"):
     freq_axis = np.fft.fftfreq(len(data), 1 / sampling_rate)
     power_spectrum = moving_average(power_spectrum, window_size=100)
 
+    n = len(data)
     # Plotting
     plt.semilogy(freq_axis, power_spectrum, color, label=label)
 
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("Power Spectrum")
     plt.title("Power Spectrum of the Signal")
-    plt.xlim(-0.01, 100)
+    plt.xlim(-0.01, 125)
+    plt.grid(True)
+    sns.despine()
 
 
 # Define a high-pass filter
