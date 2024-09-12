@@ -8,10 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy import signal
 from scipy.fft import fft, ifft
-from scipy.signal import butter, filtfilt, find_peaks
-from sklearn.preprocessing import MinMaxScaler
+from scipy.signal import butter, filtfilt, iirnotch, find_peaks
 
 
 def moving_average(data, window_size):
@@ -36,7 +34,7 @@ def moving_average(data, window_size):
     return smoothed_data
 
 
-def apply_filter(data, f_notch=60, Q=200):
+def apply_filter(data, f_notch=60, Q=200, fs=250):
     """
     Apply a notch filter to remove 60 Hz noise
 
@@ -55,8 +53,7 @@ def apply_filter(data, f_notch=60, Q=200):
         dataframe with the filtered data.
     """
     # Generate sample signal
-    sampling_rate = 1000  # Sample rate (Hz)
-    b, a = signal.iirnotch(f_notch, Q, sampling_rate)
+    b, a = signal.iirnotch(f_notch, Q, fs)
 
     # Apply the notch filter to the signal
     data = signal.lfilter(b, a, data)
@@ -139,14 +136,14 @@ def findpeaks_and_plot(
     return df_peaks
 
 
-def plot_FFT(data, sampling_rate=1000, color="black", label="test"):
+def plot_FFT(data, fs=1000, color="black", label="test"):
 
     # Compute power spectrum for sensor
     signal_fft = np.fft.fft(data)
     power_spectrum = np.abs(signal_fft)
 
     # Frequency axis
-    freq_axis = np.fft.fftfreq(len(data), 1 / sampling_rate)
+    freq_axis = np.fft.fftfreq(len(data), 1 / fs)
     power_spectrum = moving_average(power_spectrum, window_size=100)
 
     n = len(data)
@@ -174,5 +171,35 @@ def lowpass_filter(data, cutoff_freq, fs, order=5):
     nyquist_freq = 0.5 * fs
     normal_cutoff = cutoff_freq / nyquist_freq
     b, a = butter(order, normal_cutoff, btype="low", analog=False)
+    filtered_data = filtfilt(b, a, data)
+    return filtered_data
+
+
+def butterworth_bandpass(data, lowcut=1.0, highcut=125.0, fs=1000.0, order=5):
+    """
+    Apply a Butterworth bandpass filter to the data.
+
+    Parameters:
+    - data: array-like, the input signal.
+    - lowcut: float, the lower cutoff frequency of the bandpass filter.
+    - highcut: float, the upper cutoff frequency of the bandpass filter.
+    - fs: float, the sampling rate of the signal.
+    - order: int, the order of the filter.
+
+    Returns:
+    - filtered_data: array-like, the filtered signal.
+    """
+    nyquist = 0.5 * fs
+    low = lowcut / nyquist
+    high = highcut / nyquist
+    b, a = butter(order, [low, high], btype='band')
+    filtered_data = filtfilt(b, a, data)
+    return filtered_data
+
+
+def notch_filter(data, freq, fs=1000.0, quality_factor=30):
+    nyquist = 0.5 * fs
+    notch_freq = freq / nyquist
+    b, a = iirnotch(notch_freq, quality_factor)
     filtered_data = filtfilt(b, a, data)
     return filtered_data
