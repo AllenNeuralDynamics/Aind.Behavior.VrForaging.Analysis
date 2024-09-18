@@ -2,6 +2,45 @@ import numpy as np
 import pandas as pd
 
 
+def assign_odor_triggers(reward_sites, odor_triggers):
+    reward_sites["odor_onset"] = np.nan
+    reward_sites["odor_offset"] = np.nan
+    reward_sites["all_odor_onsets"] = reward_sites.apply(lambda x: [], axis=1)
+    reward_sites["all_odor_offsets"] = reward_sites.apply(lambda x: [], axis=1)
+
+    for i, (index, row) in enumerate(reward_sites.iterrows()):
+        if i < len(reward_sites) - 1:
+            next_index = reward_sites.index[i + 1]
+            # Find odor triggers within the range
+            mask = (odor_triggers.odor_onset >= index) & (odor_triggers.odor_offset < next_index)
+        if i == len(reward_sites)-1:
+            # Handle the last row separately if needed
+            last_index = reward_sites.index[-1]
+            mask = odor_triggers.odor_onset >= last_index
+            
+        onsets_within_range = odor_triggers.loc[mask, "odor_onset"].values
+        offsets_within_range = odor_triggers.loc[mask, "odor_offset"].values
+
+        # Assign the first onset to the new column
+        if len(onsets_within_range) > 0:
+            reward_sites.at[index, "odor_onset"] = onsets_within_range[0]
+            if len(onsets_within_range) > 1:
+                reward_sites.at[index, "all_odor_onsets"] = list(onsets_within_range[:])
+            else:
+                reward_sites.at[index, "all_odor_onsets"] = np.nan
+
+        # Assign the last offset to the new column
+        if len(offsets_within_range) > 0:
+            reward_sites.at[index, "odor_offset"] = offsets_within_range[-1]
+            if len(offsets_within_range) > 1:
+                reward_sites.at[index, "all_odor_offsets"] = list(offsets_within_range)
+            else:
+                reward_sites.at[index, "all_odor_offsets"] = np.nan
+
+    reward_sites['odor_duration'] = reward_sites['odor_offset'] - reward_sites['odor_onset']
+    reward_sites = reward_sites.dropna(axis=1, how='all')
+    return reward_sites
+    
 class AddExtraColumns:
     def __init__(self, reward_sites, active_site, run_on_init=True):
         self.reward_sites = reward_sites
