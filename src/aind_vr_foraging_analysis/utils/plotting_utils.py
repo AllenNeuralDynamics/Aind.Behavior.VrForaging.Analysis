@@ -876,6 +876,7 @@ def trial_collection(
     cropped_to_length: bool = False,
     window: list = [-0.5, 2],
     taken_col: str = "filtered_velocity",
+    continuous: bool = True,
 ):
     """
     Crop the snippets of speed traces that are aligned to different epochs
@@ -910,37 +911,45 @@ def trial_collection(
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
     for start_reward, row in reward_sites.iloc[:-1].iterrows():
         if cropped_to_length:
-            window[0] = row['time_since_entry']
-            window[1] = row['exit_epoch']
+            window[0] = -1
+            window[1] = row['odor_duration']
             
         trial_average = pd.DataFrame()
         if aligned != 'index':
-            
             trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index < row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
+            time_reference = row[aligned]
+
         else:
             trial = continuous_data.loc[
                 start_reward + window[0] : start_reward + window[1], taken_col
             ]
             trial.index -= start_reward
+            time_reference = start_reward
 
-        # Assuming trial.values, window, and samples_per_second are defined
-        # Calculate the maximum number of intervals that can fit within the available data points
-        max_intervals = len(trial.values) * samples_per_second
+        if continuous == True:
+            # Assuming trial.values, window, and samples_per_second are defined
+            # Calculate the maximum number of intervals that can fit within the available data points
+            max_intervals = len(trial.values) * samples_per_second
 
-        # Calculate the actual stop value based on the maximum possible intervals
-        actual_stop = min(window[1], window[0] + max_intervals)
+            # Calculate the actual stop value based on the maximum possible intervals
+            actual_stop = min(window[1], window[0] + max_intervals)
 
-        # Generate the time range with the adjusted stop value
-        times = np.arange(window[0], actual_stop, samples_per_second)
-        if len(times) != len(trial.values):
-            # print('Different timing than values, ', len(times), len(trial.values))
-            trial = trial.values[:len(times)]
-        else:
-            trial = trial.values
+            # Generate the time range with the adjusted stop value
+            times = np.arange(window[0], actual_stop, samples_per_second)
+            if len(times) != len(trial.values):
+                # print('Different timing than values, ', len(times), len(trial.values))
+                trial = trial.values[:len(times)]
+            else:
+                trial = trial.values
             
-        trial_average["times"] = times
-
+            trial_average["times"] = times
+        else:
+            trial_average["times"] = trial.index     
+            trial = trial.values     
+        
+        trial_average['time_reference'] = time_reference
+        
         if len(trial) == len(trial_average["times"]):
             if "filtered_velocity" == taken_col:
                 trial_average["speed"] = trial
@@ -948,10 +957,11 @@ def trial_collection(
                 trial_average[taken_col] = trial
         else:
             continue
+            
         # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
             trial_average[column] = np.repeat(row[column], len(trial))
-
+        
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
 
     trial_summary["mouse"] = mouse
