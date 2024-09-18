@@ -716,28 +716,7 @@ def odor_data_harp_olfactometer(data):
     data["harp_olfactometer"].streams.EndValveState.load_from_file()
 
     schema_properties = TaskSchemaProperties(data)
-
-    # Assign odor labels to odor indexes
-    odor0 = False
-    odor1 = False
-    odor2 = False
-
-    data["config"].streams[schema_properties.tasklogic].load_from_file()
-
-    for patches in schema_properties.patches:
-        if (
-            patches[schema_properties.odor_specifications][schema_properties.odor_index]
-            == 0
-        ):
-            odor0 = patches["label"]
-        elif (
-            patches[schema_properties.odor_specifications][schema_properties.odor_index]
-            == 1
-        ):
-            odor1 = patches["label"]
-        else:
-            odor2 = patches["label"]
-
+    
     # Selecting which odor valve is open before the end valves are opened
     OdorValveState = pd.DataFrame()
     OdorValveState["time"] = data[
@@ -758,7 +737,7 @@ def odor_data_harp_olfactometer(data):
         '2',
         False,
     )
-
+    
     # Create a new dataframe to store the results
     OdorValveState = pd.DataFrame(columns=["time", "condition"])
 
@@ -800,7 +779,6 @@ def odor_data_harp_olfactometer(data):
     odor_triggers = pd.DataFrame(columns=["odor_onset", "odor_offset", "patch_type"])
     onset = np.nan
     offset = np.nan
-    first = True
     opened = np.nan
     condition = "EndValveOff"
     for i, row in odor_updates.iterrows():
@@ -829,20 +807,30 @@ def odor_data_harp_olfactometer(data):
         new_row = {"odor_onset": onset, "odor_offset": np.nan, "patch_type": condition}
         odor_triggers.loc[len(odor_triggers)] = new_row
 
-    # print(odor_triggers)
-    # print(reward_sites)
-    # reward_sites["odor_onset"] = np.nan
-    # reward_sites["odor_offset"] = np.nan
-    # try:
-    #     # assert np.any(
-    #     #     odor_triggers["condition"].values == reward_sites["odor_label"].values
-    #     # )
-    #     reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
-    #     reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
-    # except:
-    #     reward_sites = reward_sites.iloc[:-1]
-    #     reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
-    #     reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
+    # Assign odor labels to odor indexes
+    odor0 = False
+    odor1 = False
+    odor2 = False
+
+    data["config"].streams[schema_properties.tasklogic].load_from_file()
+
+    for patches in schema_properties.patches:
+        if (
+            patches[schema_properties.odor_specifications][schema_properties.odor_index]
+            == 0
+        ):
+            odor0 = patches["label"]
+        elif (
+            patches[schema_properties.odor_specifications][schema_properties.odor_index]
+            == 1
+        ):
+            odor1 = patches["label"]
+        else:
+            odor2 = patches["label"]
+    
+    odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "0", odor0, odor_triggers["patch_type"])
+    odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "1", odor1, odor_triggers["patch_type"])
+    odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "2", odor2, odor_triggers["patch_type"])
 
     # return reward_sites  ## ------------------------------------------------------------------------- ##
     return odor_triggers
