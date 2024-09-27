@@ -254,9 +254,30 @@ def plot_sniff_raster_simple(test_df, axes1, axes2,
     axes1.plot(x, y, 'o', color=color, markersize=1, marker='.')
     axes1.set_ylabel('Trial')
     
-    time_bins = np.arange(window[0], window[1], range_step)
-    heights, bin_edges, _ = axes2.hist(x, bins=time_bins, color=color, alpha=0.5, histtype='step', 
-            edgecolor=color, weights=np.ones(len(x)) /  test_df.new_trial.nunique()/range_step)
+    # time_bins = np.arange(window[0], window[1], range_step)
+    # heights, bin_edges, _ = axes2.hist(x, bins=time_bins, color=color, alpha=0.5, histtype='step', 
+    #         edgecolor=color, weights=np.ones(len(x)) /  test_df.new_trial.nunique()/range_step)
+    
+    # Define overlapping bins
+    overlap = range_step/2
+    time_bins = np.arange(window[0], window[1] + range_step, overlap)
+
+    # Calculate histogram values for each bin
+    heights = []
+    for i in range(len(time_bins) - 1):
+        bin_start = time_bins[i]
+        bin_end = time_bins[i] + range_step
+        bin_count = ((x >= bin_start) & (x < bin_end)).sum()
+        heights.append(bin_count / test_df.new_trial.nunique() / range_step)
+
+    # Plot the histogram with overlapping bins
+    axes2.plot(time_bins[:-1], heights, color=color, alpha=0.5, drawstyle='steps-post')
+
+    # Apply rolling average
+    heights_series = pd.Series(heights)
+    heights_smoothed = heights_series.rolling(window=4, center=True).mean()
+    axes2.plot(time_bins[:-1], heights_smoothed, color=color)
+
     axes2.set_ylabel('Frequency')
     axes2.set_xlim(window[0], window[1])
     
@@ -447,4 +468,37 @@ def plot_sniff_raster_odor_conditioned(raster,
     # plt.show()
     return fig
 
+
+def plot_sniff_raster_conditioned_simple(raster, 
+                                  velocity,
+                                  condition = 'has_choice',
+                                  condition_values = [1, 0],
+                                  colors = ['crimson', 'steelblue'],
+                                  all_axes = None
+                                  ):
+
+    if all_axes is None:
+        fig, ax = plt.subplots(3,1, figsize=(5, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1, 2]})
+        axes1, axes2, axes4 = ax[0], ax[1], ax[2]
+        
+    for axes in ax.flatten():
+        axes.vlines(0, 0, 1, transform=axes.get_xaxis_transform(), color='black', alpha=0.5, linewidth=0.5)
+        
+    raster_1 = raster.loc[(raster[condition] == condition_values[0])]
+    raster_2 = raster.loc[(raster[condition] == condition_values[1])]
     
+    color1 = colors[1]
+    color2 = colors[0]
+
+    plot_sniff_raster_simple(raster_1, axes1, axes2, color = color1)
+    plot_sniff_raster_simple(raster_2, axes1, axes2, color = color2, max_trial = raster_1.total_sites.nunique()+5)
+
+    # sns.lineplot(data=frequency_troughs, x='times', y='instantaneous_frequency', hue=condition, ax=axes3, palette= colors, legend=False)
+    # axes3.set_ylabel('Frequency (Hz)')
+    sns.lineplot(data=velocity, x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= colors)
+    axes4.set_xlabel('Time from odor onset (s)')
+    axes4.set_ylabel('Velocity (cm/s)')
+    axes4.legend(loc='upper right')
+    sns.despine()
+    plt.tight_layout()
+    return fig
