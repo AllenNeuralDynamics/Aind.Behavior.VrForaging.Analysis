@@ -910,9 +910,16 @@ def trial_collection(
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
     for start_reward, row in reward_sites.iloc[:-1].iterrows():
-        if cropped_to_length:
-            window[0] = -1
-            window[1] = row['odor_duration']
+        if cropped_to_length == 'sniff':
+            # window[0] = -1
+            # window[1] = row['odor_duration']
+            window[0] = 0
+            window[1] = row['next_index'] - start_reward   
+        elif cropped_to_length == 'raster':    
+            window[0] = row['time_since_entry']
+            window[1] = row['exit_epoch']
+        elif cropped_to_length == 'epoch':
+            window[1] = row['epoch_duration']
             
         trial_average = pd.DataFrame()
         if aligned != 'index':
@@ -1037,13 +1044,13 @@ def raster_with_velocity(
     ax1.set_ylabel("Patch number")
     sns.despine()
     ax1.set_ylim(-1, max(active_site.active_patch) + 1)
-    ax1.set_xlim(active_site.groupby('active_patch').time_since_entry.min().min(), active_site.groupby('active_patch').duration_epoch.sum().max())
+    ax1.set_xlim(active_site.groupby('active_patch').time_since_entry.min(), active_site.groupby('active_patch').duration_epoch.max())
 
     if save:
         save.savefig(fig)
         plt.close(fig)
-    else:
-        plt.show()
+        
+    return fig
 
 
 # def session_raster_segmented(reward_sites,config, save=False):

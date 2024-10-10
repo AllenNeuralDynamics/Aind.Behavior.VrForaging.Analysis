@@ -245,14 +245,14 @@ def filtering_standard(breathing, set_moving_average=False):
 def plot_sniff_raster_simple(test_df, axes1, axes2, 
                            color, 
                            window: list = [-1, 5], 
-                           range_step: float= 0.1, 
+                           range_step: float= 0.05, 
                            max_trial: int = 0, 
                            align: str = 'times'):
     test_df['new_trial'] = pd.factorize(test_df['total_sites'])[0]
     x= test_df[align]    
     y= test_df.new_trial + max_trial
     axes1.plot(x, y, 'o', color=color, markersize=1, marker='.')
-    axes1.set_ylabel('Trial')
+    axes1.set_ylabel('Odor sites')
     
     # time_bins = np.arange(window[0], window[1], range_step)
     # heights, bin_edges, _ = axes2.hist(x, bins=time_bins, color=color, alpha=0.5, histtype='step', 
@@ -270,15 +270,15 @@ def plot_sniff_raster_simple(test_df, axes1, axes2,
         bin_count = ((x >= bin_start) & (x < bin_end)).sum()
         heights.append(bin_count / test_df.new_trial.nunique() / range_step)
 
-    # Plot the histogram with overlapping bins
-    axes2.plot(time_bins[:-1], heights, color=color, alpha=0.5, drawstyle='steps-post')
+    # # Plot the histogram with overlapping bins
+    # axes2.plot(time_bins[:-1], heights, color=color, alpha=0.5, drawstyle='steps-post')
 
     # Apply rolling average
     heights_series = pd.Series(heights)
-    heights_smoothed = heights_series.rolling(window=4, center=True).mean()
+    heights_smoothed = heights_series.rolling(window=2, center=True).mean()
     axes2.plot(time_bins[:-1], heights_smoothed, color=color)
 
-    axes2.set_ylabel('Frequency')
+    axes2.set_ylabel('Frequency (Hz)')
     axes2.set_xlim(window[0], window[1])
     
 def plot_sniff_raster_conditioned(raster, 
@@ -474,11 +474,12 @@ def plot_sniff_raster_conditioned_simple(raster,
                                   condition = 'has_choice',
                                   condition_values = [1, 0],
                                   colors = ['crimson', 'steelblue'],
-                                  all_axes = None
+                                  all_axes = None,
+                                  window = [-1,2]
                                   ):
 
     if all_axes is None:
-        fig, ax = plt.subplots(3,1, figsize=(5, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1, 2]})
+        fig, ax = plt.subplots(3,1, figsize=(4, 8), sharex=True, gridspec_kw={'height_ratios': [2, 1, 2]})
         axes1, axes2, axes4 = ax[0], ax[1], ax[2]
         
     for axes in ax.flatten():
@@ -499,6 +500,17 @@ def plot_sniff_raster_conditioned_simple(raster,
     axes4.set_xlabel('Time from odor onset (s)')
     axes4.set_ylabel('Velocity (cm/s)')
     axes4.legend(loc='upper right')
+    axes4.set_xlim(window)
+    
+    if condition == 'has_choice':
+        axes4.fill_between((velocity.odor_to_stop.min(), velocity.odor_to_stop.quantile(0.5)), -10, 60, color='grey', alpha=0.1)
+        axes1.fill_between((velocity.odor_to_stop.min(), velocity.odor_to_stop.quantile(0.5)), -1, raster.total_sites.max(), color='grey', alpha=0.1)
+        axes2.fill_between((velocity.odor_to_stop.min(), velocity.odor_to_stop.quantile(0.5)), -2, 8, color='grey', alpha=0.1)
+    else:
+        axes4.fill_between((velocity.odor_to_water.min(), velocity.odor_to_water.quantile(0.8)), -10, 60, color='yellow', alpha=0.1)
+        axes1.fill_between((velocity.odor_to_water.min(), velocity.odor_to_water.quantile(0.8)), -1, raster.total_sites.nunique(), color='yellow', alpha=0.1)
+        axes2.fill_between((velocity.odor_to_water.min(), velocity.odor_to_water.quantile(0.8)), -2, 8, color='yellow', alpha=0.1)
+         
     sns.despine()
     plt.tight_layout()
     return fig
