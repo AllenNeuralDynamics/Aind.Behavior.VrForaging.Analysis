@@ -263,7 +263,7 @@ def segmented_raster_vertical(
                     + str(
                         reward_sites.loc[
                             reward_sites.odor_label == odor
-                        ].reward_delivered.max()
+                        ].reward_probability.max()
                     )
                 ),
             )
@@ -320,7 +320,7 @@ def segmented_raster_vertical(
                 ax.set_xlabel("Patch number")
 
     fig.tight_layout()
-    plt.legend(handles=odors, loc='right', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=2)
+    plt.legend(handles=odors, loc='best', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=1)
 
     sns.despine()
 
