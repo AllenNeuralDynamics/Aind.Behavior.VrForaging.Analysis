@@ -110,7 +110,7 @@ class ContinuousData:
             )
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
-            # self.torque_data = self.torque_loading()
+            self.torque_data, self.brake_data = self.torque_loading()
             self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def encoder_loading(self, parser: str = 'filter'):
@@ -211,7 +211,17 @@ class ContinuousData:
         self.encoder_data = encoder
 
         return self.encoder_data
-
+    
+    def torque_loading(self, parser: str = 'filter'):
+        ## Load data from encoder efficiently
+        if self.current_version >= Version("0.3.0"):
+            self.data["harp_treadmill"].streams.SensorData.load_from_file()
+            torque_data = self.data["harp_treadmill"].streams.SensorData.data[['Torque', 'TorqueLoadCurrent']]
+            
+            self.data['harp_treadmill'].streams.BrakeCurrentSetPoint.load_from_file()
+            brake_data = self.data['harp_treadmill'].streams.BrakeCurrentSetPoint.data
+        return torque_data, brake_data
+            
     def choice_feedback_loading(self):
         self.data['harp_behavior'].streams.PwmStart.load_from_file()
         if self.current_version < Version("0.3.0"):
@@ -282,7 +292,6 @@ class ContinuousData:
                 .values
             )
         return self.breathing
-
 
 class RewardFunctions:
     """
@@ -1182,10 +1191,16 @@ def parse_dataframe(data: pd.DataFrame):
     active_site["label"] = np.where(
         active_site["label"] == "Reward", "RewardSite", active_site["label"]
     )
-    active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
+    active_site.rename(columns={"startPosition": "start_position", 
+                                "treadmill_specification.friction.distribution_parameters.value" : 'friction'}, inplace=True)
 
     # Crop and rename columns
-    active_site = active_site[["label", "start_position", "length"]]
+    active_site = active_site[["label", "start_position", "length", "friction"]]
+    
+    # Add the postpatch label
+    active_site['previous_epoch'] = active_site['label'].shift(-1)
+    active_site['label'] = np.where(active_site['label'] == active_site['previous_epoch'], 'PostPatch', active_site['label'])
+
     reward_sites = active_site[active_site["label"] == "RewardSite"]
     if reward_sites.empty:
         print('No reward sites found')
