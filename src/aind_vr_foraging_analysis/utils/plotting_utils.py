@@ -979,7 +979,7 @@ def trial_collection(
 def raster_with_velocity(
     active_site: pd.DataFrame,
     stream_data: pd.DataFrame,
-    save = None,
+    save = False,
     color_dict_label: dict = {
         "Ethyl Butyrate": "#d95f02",
         "Alpha-pinene": "#1b9e77",
@@ -1043,14 +1043,31 @@ def raster_with_velocity(
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
     sns.despine()
-    ax1.set_ylim(-1, max(active_site.active_patch) + 1)
-    ax1.set_xlim(active_site.groupby('active_patch').time_since_entry.min(), active_site.groupby('active_patch').duration_epoch.max())
-
+    ax1.set_ylim(-1, max(active_site.active_patch) + 1)g
+    
+    if active_site.groupby('active_patch').time_since_entry.min().min() < -50:
+        time_left = -50
+    else:
+        time_left = active_site.groupby('active_patch').time_since_entry.min().min()
+        
+    if active_site.groupby('active_patch').time_since_entry.max().max() > 200:
+        time_right = 150
+    else:
+        time_right = active_site.groupby('active_patch').time_since_entry.max().max()
+      
+    ax1.set_xlim(time_left, time_right)
+    
+    # Create legend
+    handles, labels = ax1.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax1.legend(by_label.values(), by_label.keys(), loc='upper right')
+    
     if save:
         save.savefig(fig)
         plt.close(fig)
-        
-    return fig
+    else:
+        plt.show()
+        return fig
 
 
 # def session_raster_segmented(reward_sites,config, save=False):

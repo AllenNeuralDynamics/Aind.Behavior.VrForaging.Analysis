@@ -44,7 +44,7 @@ def distinct_until_changed_state(
 find_closest_modes = Literal["closest", "above_zero", "below_zero"]
 
 
-def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000 / 2.0):
+def fir_filter(data, col, cutoff_hz, num_taps=61, nyq_rate=1000 / 2.0):
     """
     Create a FIR filter and apply it to signal.
 
@@ -57,7 +57,7 @@ def fir_filter(data, cutoff_hz, num_taps=61, nyq_rate=1000 / 2.0):
     fir_coeff = firwin(num_taps, cutoff_hz / nyq_rate)
 
     # Use lfilter to filter the signal with the FIR filter
-    data["filtered_velocity"] = filtfilt(fir_coeff, 1.0, data["velocity"].values)
+    data['filtered_' + col] = filtfilt(fir_coeff, 1.0, data[col].values)
 
     return data
 
