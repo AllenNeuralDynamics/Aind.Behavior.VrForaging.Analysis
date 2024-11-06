@@ -14,4 +14,5 @@ git clone https://github.com/harp-tech/device.analoginput
 git clone https://github.com/harp-tech/device.olfactometer
 git clone https://github.com/harp-tech/device.behavior
 
-# For certain codes to run, you will need to change the paths so they match your computer addresses
+# Use the following command to install in editable mode
+pip install -e ./

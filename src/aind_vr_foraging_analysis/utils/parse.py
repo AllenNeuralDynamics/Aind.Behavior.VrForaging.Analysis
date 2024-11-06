@@ -112,8 +112,8 @@ class ContinuousData:
             )
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
-            # self.torque_data = self.torque_loading()
-            # self.odor_triggers = odor_data_harp_olfactometer(self.data, self.reward_sites)
+            self.torque_data, self.brake_data = self.torque_loading()
+            self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def encoder_loading(self, parser: str = 'filter'):
         ## Load data from encoder efficiently
@@ -222,7 +222,17 @@ class ContinuousData:
         self.encoder_data = encoder
 
         return self.encoder_data
-
+    
+    def torque_loading(self, parser: str = 'filter'):
+        ## Load data from encoder efficiently
+        if self.current_version >= Version("0.3.0"):
+            self.data["harp_treadmill"].streams.SensorData.load_from_file()
+            torque_data = self.data["harp_treadmill"].streams.SensorData.data[['Torque', 'TorqueLoadCurrent']]
+            
+            self.data['harp_treadmill'].streams.BrakeCurrentSetPoint.load_from_file()
+            brake_data = self.data['harp_treadmill'].streams.BrakeCurrentSetPoint.data
+        return torque_data, brake_data
+            
     def choice_feedback_loading(self):
         self.data['harp_behavior'].streams.PwmStart.load_from_file()
         if self.current_version < Version("0.3.0"):
@@ -293,7 +303,6 @@ class ContinuousData:
                 .values
             )
         return self.breathing
-
 
 class RewardFunctions:
     """
@@ -600,10 +609,12 @@ def load_session_data(
     HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill/main/software/bonsai/device.yml")
     HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/software/bonsai/device.yml")
     HarpLickometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/software/bonsai/device.yml")
-
+    HarpStepperDriver = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml")
     session_path_behavior = session_path
     session_path_config = session_path
     suffix='Register__'
+    
+    # Work around the change in the folder structure
     if 'behavior' in os.listdir(session_path): 
         session_path_behavior = session_path / 'behavior'
         suffix=None
@@ -617,7 +628,7 @@ def load_session_data(
             name="behavior",
             autoload=False, 
             remove_suffix=suffix)
-    else:
+    elif 'Behavior' in os.listdir(session_path_behavior):
         print('Old behavior loading')
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
@@ -649,18 +660,35 @@ def load_session_data(
             name="sniffdetector", 
             autoload=False,
             remove_suffix=suffix)
+    
+    if 'StepperDriver.harp' in os.listdir(session_path_behavior):
+        _out_dict["harp_stepperdriver"] = data_io.HarpSource(
+            device=HarpStepperDriver, 
+            path=session_path_behavior / "StepperDriver.harp", 
+            name="stepper_driver", 
+            autoload=False,
+            remove_suffix=suffix)
         
-    _out_dict["software_events"] = data_io.SoftwareEventSource(
-        path=session_path_behavior / "SoftwareEvents",
-        name="software_events",
-        autoload=True)
+    if 'AnalogInput.harp' in os.listdir(session_path_behavior):
+        _out_dict["harp_analog"] = data_io.HarpSource(
+            device=HarpAnalogInput, 
+            path=session_path_behavior / "AnalogInput.harp", 
+            name="analog_input", 
+            autoload=False,
+            remove_suffix=suffix)
+    
+    if 'SoftwareEvents' in os.listdir(session_path_behavior):  
+        _out_dict["software_events"] = data_io.SoftwareEventSource(
+            path=session_path_behavior / "SoftwareEvents",
+            name="software_events",
+            autoload=True)
 
     # Load config old version
     if 'config.json' in os.listdir(session_path_config):
         with open(str(session_path_config)+'\config.json', 'r') as json_file:
             config = json.load(json_file)
             
-    else:
+    elif 'Config' in os.listdir(session_path_config):
         _out_dict["config"] = data_io.ConfigSource(
             path=session_path_config / "Config",
             name="config",
@@ -671,16 +699,12 @@ def load_session_data(
             path=session_path_behavior / "OperationControl",
             name="operation_control",
             autoload=True)
-    else:
-        pass
     
     if 'UpdaterEvents' in os.listdir(session_path_behavior):
         _out_dict["updater_events"] = data_io.SoftwareEventSource(
             path=session_path_behavior / "UpdaterEvents",
             name="updater_events",
             autoload=True)
-    else:
-        pass
     
     if 'Treadmill.harp' in os.listdir(session_path_behavior):
         _out_dict["harp_treadmill"] = data_io.HarpSource(
@@ -688,14 +712,12 @@ def load_session_data(
             path=session_path_behavior / "Treadmill.harp", 
             name="treadmill", 
             autoload=False)
-    else:
-        pass
     
     return _out_dict
 
 
 ## ------------------------------------------------------------------------- ##
-def odor_data_harp_olfactometer(data, reward_sites):
+def odor_data_harp_olfactometer(data):
     """
     Process odor data from the Harp Olfactometer.
 
@@ -714,28 +736,7 @@ def odor_data_harp_olfactometer(data, reward_sites):
     data["harp_olfactometer"].streams.EndValveState.load_from_file()
 
     schema_properties = TaskSchemaProperties(data)
-
-    # Assign odor labels to odor indexes
-    odor0 = False
-    odor1 = False
-    odor2 = False
-
-    data["config"].streams[schema_properties.tasklogic].load_from_file()
-
-    for patches in schema_properties.patches:
-        if (
-            patches[schema_properties.odor_specifications][schema_properties.odor_index]
-            == 0
-        ):
-            odor0 = patches["label"]
-        elif (
-            patches[schema_properties.odor_specifications][schema_properties.odor_index]
-            == 1
-        ):
-            odor1 = patches["label"]
-        else:
-            odor2 = patches["label"]
-
+    
     # Selecting which odor valve is open before the end valves are opened
     OdorValveState = pd.DataFrame()
     OdorValveState["time"] = data[
@@ -756,7 +757,7 @@ def odor_data_harp_olfactometer(data, reward_sites):
         '2',
         False,
     )
-
+    
     # Create a new dataframe to store the results
     OdorValveState = pd.DataFrame(columns=["time", "condition"])
 
@@ -798,7 +799,6 @@ def odor_data_harp_olfactometer(data, reward_sites):
     odor_triggers = pd.DataFrame(columns=["odor_onset", "odor_offset", "patch_type"])
     onset = np.nan
     offset = np.nan
-    first = True
     opened = np.nan
     condition = "EndValveOff"
     for i, row in odor_updates.iterrows():
@@ -827,23 +827,33 @@ def odor_data_harp_olfactometer(data, reward_sites):
         new_row = {"odor_onset": onset, "odor_offset": np.nan, "patch_type": condition}
         odor_triggers.loc[len(odor_triggers)] = new_row
 
-    print(odor_triggers)
-    print(reward_sites)
-    reward_sites["odor_onset"] = np.nan
-    reward_sites["odor_offset"] = np.nan
-    try:
-        # assert np.any(
-        #     odor_triggers["condition"].values == reward_sites["odor_label"].values
-        # )
-        reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
-        reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
-    except:
-        reward_sites = reward_sites.iloc[:-1]
-        reward_sites["odor_onset"] = odor_triggers["odor_onset"].values
-        reward_sites["odor_offset"] = odor_triggers["odor_offset"].values
+    # Assign odor labels to odor indexes
+    odor0 = False
+    odor1 = False
+    odor2 = False
 
-    return reward_sites  ## ------------------------------------------------------------------------- ##
+    data["config"].streams[schema_properties.tasklogic].load_from_file()
 
+    for patches in schema_properties.patches:
+        if (
+            patches[schema_properties.odor_specifications][schema_properties.odor_index]
+            == 0
+        ):
+            odor0 = patches["label"]
+        elif (
+            patches[schema_properties.odor_specifications][schema_properties.odor_index]
+            == 1
+        ):
+            odor1 = patches["label"]
+        else:
+            odor2 = patches["label"]
+    
+    odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "0", odor0, odor_triggers["patch_type"])
+    odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "1", odor1, odor_triggers["patch_type"])
+    odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "2", odor2, odor_triggers["patch_type"])
+
+    # return reward_sites  ## ------------------------------------------------------------------------- ##
+    return odor_triggers
 
 def parse_data_old(data, path):
     """
@@ -1192,10 +1202,16 @@ def parse_dataframe(data: pd.DataFrame):
     active_site["label"] = np.where(
         active_site["label"] == "Reward", "RewardSite", active_site["label"]
     )
-    active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
+    active_site.rename(columns={"startPosition": "start_position", 
+                                "treadmill_specification.friction.distribution_parameters.value" : 'friction'}, inplace=True)
 
     # Crop and rename columns
-    active_site = active_site[["label", "start_position", "length"]]
+    active_site = active_site[["label", "start_position", "length", "friction"]]
+    
+    # Add the postpatch label
+    active_site['previous_epoch'] = active_site['label'].shift(-1)
+    active_site['label'] = np.where(active_site['label'] == active_site['previous_epoch'], 'PostPatch', active_site['label'])
+
     reward_sites = active_site[active_site["label"] == "RewardSite"]
     if reward_sites.empty:
         print('No reward sites found')

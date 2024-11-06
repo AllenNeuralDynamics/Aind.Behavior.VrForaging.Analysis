@@ -263,7 +263,7 @@ def segmented_raster_vertical(
                     + str(
                         reward_sites.loc[
                             reward_sites.odor_label == odor
-                        ].reward_delivered.max()
+                        ].reward_probability.max()
                     )
                 ),
             )
@@ -320,7 +320,7 @@ def segmented_raster_vertical(
                 ax.set_xlabel("Patch number")
 
     fig.tight_layout()
-    plt.legend(handles=odors, loc='right', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=2)
+    plt.legend(handles=odors, loc='best', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=1)
 
     sns.despine()
 
@@ -440,7 +440,7 @@ def speed_traces_value(
                 ax1[i + 2].text(1.2, 75, f"Not stopped", fontsize=12)
 
     sns.despine()
-    plt.suptitle(mouse + "_" + session)
+    plt.suptitle(str(mouse) + "_" + str(session))
     plt.tight_layout()
 
     if save != False:
@@ -606,7 +606,7 @@ def speed_traces_efficient(
         )
 
     sns.despine()
-    plt.suptitle(mouse + "_" + session + "_" + odor)
+    plt.suptitle(str(mouse) + "_" + str(session) + "_" + odor)
     plt.tight_layout()
 
     if save != False:
@@ -876,6 +876,7 @@ def trial_collection(
     cropped_to_length: bool = False,
     window: list = [-0.5, 2],
     taken_col: str = "filtered_velocity",
+    continuous: bool = True,
 ):
     """
     Crop the snippets of speed traces that are aligned to different epochs
@@ -909,38 +910,53 @@ def trial_collection(
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
     for start_reward, row in reward_sites.iloc[:-1].iterrows():
-        if cropped_to_length:
+        if cropped_to_length == 'sniff':
+            # window[0] = -1
+            # window[1] = row['odor_duration']
+            window[0] = 0
+            window[1] = row['next_index'] - start_reward   
+        elif cropped_to_length == 'raster':    
             window[0] = row['time_since_entry']
             window[1] = row['exit_epoch']
+        elif cropped_to_length == 'epoch':
+            window[1] = row['epoch_duration']
             
         trial_average = pd.DataFrame()
         if aligned != 'index':
-            
             trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index < row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
+            time_reference = row[aligned]
+
         else:
             trial = continuous_data.loc[
                 start_reward + window[0] : start_reward + window[1], taken_col
             ]
             trial.index -= start_reward
+            time_reference = start_reward
 
-        # Assuming trial.values, window, and samples_per_second are defined
-        # Calculate the maximum number of intervals that can fit within the available data points
-        max_intervals = len(trial.values) * samples_per_second
+        if continuous == True:
+            # Assuming trial.values, window, and samples_per_second are defined
+            # Calculate the maximum number of intervals that can fit within the available data points
+            max_intervals = len(trial.values) * samples_per_second
 
-        # Calculate the actual stop value based on the maximum possible intervals
-        actual_stop = min(window[1], window[0] + max_intervals)
+            # Calculate the actual stop value based on the maximum possible intervals
+            actual_stop = min(window[1], window[0] + max_intervals)
 
-        # Generate the time range with the adjusted stop value
-        times = np.arange(window[0], actual_stop, samples_per_second)
-        if len(times) != len(trial.values):
-            # print('Different timing than values, ', len(times), len(trial.values))
-            trial = trial.values[:len(times)]
-        else:
-            trial = trial.values
+            # Generate the time range with the adjusted stop value
+            times = np.arange(window[0], actual_stop, samples_per_second)
+            if len(times) != len(trial.values):
+                # print('Different timing than values, ', len(times), len(trial.values))
+                trial = trial.values[:len(times)]
+            else:
+                trial = trial.values
             
-        trial_average["times"] = times
-
+            trial_average["times"] = times
+        else:
+            trial_average["times"] = trial.index     
+            trial = trial.values     
+        
+        trial_average['time_reference'] = time_reference
+        
         if len(trial) == len(trial_average["times"]):
             if "filtered_velocity" == taken_col:
                 trial_average["speed"] = trial
@@ -948,10 +964,11 @@ def trial_collection(
                 trial_average[taken_col] = trial
         else:
             continue
+            
         # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
             trial_average[column] = np.repeat(row[column], len(trial))
-
+        
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
 
     trial_summary["mouse"] = mouse
@@ -992,11 +1009,12 @@ def raster_with_velocity(
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
     
+    print(stream_data.encoder_data)
     trial_summary = trial_collection(test_df, stream_data.encoder_data, active_site.mouse.unique()[0], active_site.session.unique()[0], aligned='patch_onset', cropped_to_length=True)
 
     fig, ax1 = plt.subplots(figsize=(14, 30))
     ax2 = ax1.twinx()
-
+    print(trial_summary.columns)
     max_speed = np.quantile(trial_summary['speed'],0.99)
     for index, row in active_site.iterrows():
         if row['label'] == 'InterPatch':
@@ -1025,7 +1043,7 @@ def raster_with_velocity(
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
     sns.despine()
-    ax1.set_ylim(-1, max(active_site.active_patch) + 1)
+    ax1.set_ylim(-1, max(active_site.active_patch) + 1)g
     
     if active_site.groupby('active_patch').time_since_entry.min().min() < -50:
         time_left = -50
@@ -1514,4 +1532,24 @@ def raster_plot(x_start, pdf):
     axs.yaxis.tick_right()
     axs.set_xlim([x_start, x_start + 80])
     pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
+def update_values(reward_sites, save = False):
+    fig, ax = plt.subplots(3,1, figsize=(10,10), sharex=True)
+    sns.lineplot(data=reward_sites, x='odor_sites', y='velocity_threshold_cms', color='black', ax=ax[0])
+    ax[0].set_ylabel('Velocity \n threshold (cm/s)')
+
+    sns.lineplot(data=reward_sites, x='odor_sites', y='delay_s', color='black', ax=ax[1])
+    ax[1].set_ylabel('Delay (s)')
+
+    sns.lineplot(data=reward_sites, x='odor_sites', y='stop_duration_s', color='black', ax=ax[2])
+    ax[2].set_ylabel('Stop duration (s)')
+    ax[2].set_xlabel('Odor sites')
+    sns.despine()
+    plt.tight_layout()
+    
+    if save:
+        save.savefig(fig)
+    else:
+        plt.show()
     plt.close(fig)
