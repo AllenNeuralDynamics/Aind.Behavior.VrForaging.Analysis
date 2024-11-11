@@ -606,9 +606,9 @@ def load_session_data(
     HarpBehavior = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml")
     HarpOlfactometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/main/device.yml")
     HarpAnalogInput = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml")
-    HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill/main/software/bonsai/device.yml")
-    HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/software/bonsai/device.yml")
-    HarpLickometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/software/bonsai/device.yml")
+    HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill-driver/main/device.yml")
+    HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/device.yml")
+    HarpLickometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/device.yml")
     HarpStepperDriver = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml")
     session_path_behavior = session_path
     session_path_config = session_path
