@@ -26,6 +26,7 @@ pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
+from scipy.stats import ttest_ind, ttest_rel
 
 pdf_path = r'Z:\scratch\vr-foraging\sessions'
 base_path = r'Z:\scratch\vr-foraging\data'
@@ -41,13 +42,6 @@ color_dict_label = {'Ethyl Butyrate': color1, 'Alpha-pinene': color2, 'Amyl Acet
                     '2-Heptanone' : color2, 'Methyl Acetate': color1, 'Fenchone': color3, '2,3-Butanedione': color4,
                     'Methyl Butyrate': color1}
 
-dict_odor = {}
-rate = -0.12
-offset = 0.6
-dict_odor['Methyl Butyrate'] = {'rate':rate, 'offset':0.9, 'color': '#d95f02'}
-dict_odor['Alpha-pinene'] = {'rate':rate, 'offset':offset, 'color': '#1b9e77'}
-dict_odor['Amyl Acetate'] = {'rate':rate, 'offset':offset, 'color': '#7570b3'}
-
 # Define exponential function
 def exponential_func(x, a, b):
     return a * np.exp(b * x)
@@ -57,90 +51,203 @@ def format_func(value, tick_number):
 
 results_path = r'C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\VR foraging\experiments\batch 4 - manipulating cost of travelling and global statistics\results'
 
-class SingleMouseResults(mouse: str,
-                        summary_df: pd.Dataframe(), 
-                        velocity_df: pd.Dataframe(),
-                        torque_df: pd.Dataframe(),
-                         ):
+def plot_lines(data: pd.DataFrame, ax, variable = 'total_rewards', condition =  'mouse'):
+    for value in data[condition].unique():
+        y = data.loc[(data[condition] == value)][variable].values
+        x = data.loc[(data[condition] == value)].odor_label.values
+        ax.plot(x, y, marker='', linestyle='-', color='black', alpha=0.4, linewidth=1)
+
+def plot_significance(general_df: pd.DataFrame, axes, variable = 'total_rewards'):
+        # Perform statistical test and add significance annotations
+    group1 = general_df.loc[general_df.odor_label == 'Methyl Butyrate', variable]
+    group2 = general_df.loc[general_df.odor_label == 'Alpha-pinene', variable]
+    # Perform t-test
+    try:
+        t_stat, p_value = ttest_rel(group1, group2, nan_policy='omit')
+    except:
+        print('Error in t-test paired, running independent t-test')
+        t_stat, p_value = ttest_ind(group1, group2, nan_policy='omit')
     
-    self.summary_df = summary_df
-    self.velocity_df = velocity_df
-    self.torque_df = torque_df
-    self.mouse
+    print(f'{variable} p-value: {p_value}')
+    # Add significance annotation
+    x1, x2 = 0, 1  # x-coordinates of the groups
+    y, h, col = general_df[variable].max() + 1, 0.5, 'k'  # y-coord, line height, color
+    if variable == 'reward_probability':
+        y = 0.6
+        h=0.05
+        
+    if p_value < 0.001:
+        significance = "***" 
+    elif p_value < 0.01:
+        significance = "**" 
+    elif p_value < 0.05:
+        significance = "*"
+    else:
+        significance = "ns"
     
-    groups = ['session','mouse','active_patch','odor_label','experiment']
-    summary = summary_df.loc[(summary_df.visit_number != 0)&(summary_df.has_choice ==True)].groupby(groups).agg({'reward_delivered':'sum','visit_number':'count'}).reset_index()
-    summary = summary.loc[summary.mouse == mouse]
-    summary = summary.groupby(['session','odor_label','experiment']).agg({'reward_delivered':'mean','visit_number':'mean'})
-    summary = summary.loc[(summary.odor_label != 'Amyl Acetate')&(summary.odor_label != 'Fenchone')]
-    summary.reset_index(inplace=True)
-        
-    def run_summary(self):
-        with PdfPages(os.path.join(results_path, f'{self.mouse_id}_batch4_experiments.pdf')) as pdf:
-            self.plot_summary(pdf)
-            self.plot_velocity(pdf)
-            self.plot_torque(pdf)
+    print(significance)
+    axes.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.5, c=col)
+    axes.text((x1 + x2) * 0.5, y + h, significance, ha='center', va='bottom', color=col)
+
+def summary_main_variables(general_df, 
+                           experiment, 
+                           condition = 'mouse', 
+                           odor_labels = ['Methyl Butyrate', 'Alpha-pinene'],
+                           save=False):
+    """
+    Generates a summary plot of main behavioral variables for a given experiment and grouping condition.
     
-    def general_parameter_summary(self, pdf):
-        summary_df = self.summary_df
-        mouse = self.mouse
+    Parameters:
+    general_df (pd.DataFrame): DataFrame containing the behavioral data.
+    experiment (str): The name of the experiment to filter the data.
+    condition (str, optional): The condition to group the data by. Default is 'mouse'.
+    save (bool or str, optional): If False, the plot is displayed. If True, the plot is saved as 'summary_mouse.pdf'.
+                                    If a string is provided, the plot is saved to the specified path.
+    Returns:
+    None
+    """
+            
+    fig,ax = plt.subplots(2,3, figsize=(9,9))
+    if condition == 'session_number':
+        plt.suptitle(f'{general_df.mouse.iloc[0]} {experiment}')
+    else:
+        plt.suptitle(experiment)
         
-        fig,ax = plt.subplots(1,3, figsize=(9,4.5))
+    general_df = general_df.loc[(general_df.odor_label != 'Amyl Acetate')&(general_df.odor_label != 'Fenchone')]
+    general_df = general_df.loc[general_df.experiment == experiment]
+    
+    axes = ax[0][0]
+    variable = 'total_rewards'
+    sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=odor_labels,legend=False, zorder=10, width =0.7, ax=axes)
+    plot_lines(general_df, axes, variable, condition)
+    plot_significance(general_df, axes, variable)
+    
+    axes.set_ylabel('Rewards collected')
+    axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    axes.set_xlabel('')
+    axes.set_ylim(0,15)
 
-        axes = ax[0]
-        sns.boxplot(x='odor_label', y='reward_delivered', hue='odor_label', palette = color_dict_label, data=summary.loc[summary['experiment']==experiment], order=['Methyl Butyrate', 'Alpha-pinene'],legend=False, zorder=10, width =0.7, ax=axes, fliersize=0)
+    axes = ax[0][1]
+    variable = 'reward_probability'
+    sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=odor_labels, legend=False, zorder=10, width =0.7, ax=axes)
 
-        for session in summary.session.unique():
-            y = summary.loc[(summary.session == session)&(summary['experiment']==experiment)].reward_delivered.values
-            x = summary.loc[(summary.session == session)&(summary['experiment']==experiment)].odor_label.values
-            axes.plot(x, y, marker='', linestyle='-', color='black', alpha=0.4, linewidth=1)
+    plot_lines(general_df, axes, variable, condition)
+    plot_significance(general_df, axes, variable)
 
-        axes.set_ylabel('Rewards collected')
-        axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
-        axes.set_xlabel('')
-        axes.set_ylim(0,15)
+    axes.set_ylabel('p(reward) upon leaving')
+    axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    axes.set_xlabel('')
+    axes.set_ylim(0.1,0.8)
 
-        summary = summary_df.loc[(summary_df.has_choice ==True)].groupby(['session','mouse','active_patch','odor_label', 'experiment']).agg({'collected':'sum','visit_number':'count', 'reward_probability':'min'}).reset_index()
-        summary = summary.loc[(summary.visit_number > 1)]
-        summary = summary.loc[summary.mouse == mouse]
+    # Stops --------------------------------
+    axes = ax[0][2]
+    variable = 'stops'
+    sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=odor_labels,legend=False, zorder=10, width =0.7, ax=axes)
+    plot_lines(general_df, axes, variable, condition)
+    plot_significance(general_df, axes, variable)
 
-        summary = summary.groupby(['session','mouse','odor_label','experiment']).agg({'collected':'mean','reward_probability':'median', 'active_patch': 'nunique'}).reset_index()
-        summary = summary.loc[(summary.odor_label != 'Amyl Acetate')&(summary.odor_label != 'Fenchone')]
+    axes.set_ylabel('Stops')
+    axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    axes.set_xlabel('')
+    
+    # Total failures
+    axes = ax[1][0]
+    variable = 'total_failures'
+    sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=odor_labels,legend=False, zorder=10, width =0.7, ax=axes)
+    plot_lines(general_df, axes, variable, condition)
+    plot_significance(general_df, axes, variable)
 
-        axes = ax[1]
-        sns.boxplot(x='odor_label', y='reward_probability', hue='odor_label', palette = color_dict_label, data=summary.loc[summary['experiment']==experiment], order=['Methyl Butyrate', 'Alpha-pinene'],legend=False, zorder=10, width =0.7, ax=axes, fliersize=0)
+    axes.set_ylabel('Total failures')
+    axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    axes.set_xlabel('')
+    
+    # Consecutive failures
+    axes = ax[1][1]
+    variable = 'consecutive_failures'
+    sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=odor_labels,legend=False, zorder=10, width =0.7, ax=axes)
+    plot_lines(general_df, axes, variable, condition)
+    plot_significance(general_df, axes, variable)
 
-        for session in summary.session.unique():
-            y = summary.loc[(summary.session == session)&(summary['experiment']==experiment)].reward_probability.values
-            x = summary.loc[(summary.session == session)&(summary['experiment']==experiment)].odor_label.values
-            axes.plot(x, y, marker='', linestyle='-', color='black', alpha=0.4, linewidth=1)
+    axes.set_ylabel('Consecutive failures')
+    axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    axes.set_xlabel('')
+    
+    # Duration epoch
+    axes = ax[1][2]
+    # variable = 'duration_epoch'
+    # sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=['Methyl Butyrate', 'Alpha-pinene'],legend=False, zorder=10, width =0.7, ax=axes)
+    # plot_lines(general_df, axes, variable, condition)
+    # axes.set_ylabel('Duration odor sites (s)')
+    # axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    # axes.set_xlabel('')
+    
+    # Total patches
+    # axes = ax[2][0]
+    variable = 'active_patch'
+    sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=['Methyl Butyrate', 'Alpha-pinene'],legend=False, zorder=10, width =0.7, ax=axes)
+    plot_lines(general_df, axes, variable, condition)
+    plot_significance(general_df, axes, variable)
 
-        axes.set_ylabel('p(reward) when leaving')
-        axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
-        axes.set_xlabel('')
-        axes.set_ylim(0.2,1)
+    axes.set_ylabel('# patches')
+    axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
+    axes.set_xlabel('')
+    
+    sns.despine()
+    plt.tight_layout()
+    if save:
+        fig.savefig(save, format='pdf')
+    else:
+        plt.savefig(results_path+f'/summary_mouse.pdf', dpi=300, bbox_inches='tight')
+    plt.show()
 
-        # Stops --------------------------------
-        summary = summary_df.loc[(summary_df.visit_number != 0)&(summary_df.has_choice ==True)].groupby(['session','mouse','active_patch','odor_label','experiment']).agg({'reward_delivered':'sum','visit_number':'count'})
-        summary = summary.groupby(['session','mouse','odor_label','experiment']).agg({'visit_number':'mean'})
-        
-        summary.reset_index(inplace=True)
-        summary = summary.loc[summary.mouse == mouse]
-        summary = summary.loc[(summary.odor_label != 'Amyl Acetate')&(summary.odor_label != 'Fenchone')]
 
-        axes = ax[2]
-        sns.boxplot(x='odor_label', y='visit_number', hue='odor_label', palette = color_dict_label, data=summary.loc[summary['experiment']==experiment], order=['Methyl Butyrate', 'Alpha-pinene'],legend=False, zorder=10, width =0.7, ax=axes, fliersize=0)
+def across_sessions_one_plot(summary_df, variable, save=False):
+    experiments = summary_df['experiment'].unique()
+    palette = sns.color_palette("tab10", len(experiments))
+    color_dict_experiment = dict(zip(experiments, palette))
 
-        for session in summary.session.unique():
-            y = summary.loc[(summary.session == session)&(summary['experiment']==experiment)].visit_number.values
-            x = summary.loc[(summary.session == session)&(summary['experiment']==experiment)].odor_label.values
-            axes.plot(x, y, marker='', linestyle='-', color='black', alpha=0.4, linewidth=1)
+    # Create a style dictionary for each odor label
+    odor_labels = summary_df['odor_label'].unique()
+    styles = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
+    style_dict_odor_label = dict(zip(odor_labels, styles))
+    
+    min_value = summary_df[variable].min()
+    max_value = summary_df[variable].max()
+    for i, mouse in enumerate(summary_df.mouse.unique()):
+        fig = plt.figure(figsize=(20,6))
+        sns.scatterplot(summary_df.loc[(summary_df.mouse == mouse)], x='session_number', size="visit_number", hue='experiment', style='odor_label', sizes=(30, 500), y=variable, 
+                        palette=color_dict_experiment,  alpha=0.7,
+                        markers=style_dict_odor_label)
 
-        axes.set_ylabel('Stops')
-        axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
-        axes.set_xlabel('')
-
+        plt.xlabel('')
+        plt.title(f'{mouse}')
+        plt.ylim(min_value, max_value)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=1, title='Experiment')
         sns.despine()
-        plt.suptitle(mouse)
         plt.tight_layout()
+        plt.show()
+        if save:
+            fig.savefig(save, format='pdf')
+            
+def across_sessions_multi_plot(summary_df, variable, condition: str = 'None', save=False):
+
+    fig = plt.figure(figsize=(18,10))
+    
+    if condition == 'mouse':
+        plt.suptitle(f'{summary_df.mouse.iloc[0]}')
         
+    for i, experiment in enumerate(summary_df.experiment.unique()):
+        ax = plt.subplot(2, 3, i + 1)
+            
+        sns.scatterplot(summary_df.loc[(summary_df.experiment == experiment)], x='within_session_number', size="visit_number", hue='odor_label', sizes=(30, 500), y=variable, palette=color_dict_label, ax=ax, legend=False, alpha=0.7)
+
+        sns.lineplot(x='within_session_number', y=variable, hue='odor_label', palette = color_dict_label,  legend=False,  data=summary_df.loc[(summary_df.experiment == experiment)], marker='', ax=ax)
+
+        plt.title(f'{experiment}')
+        sns.despine()
+        
+    plt.tight_layout()
+    if save:
+        fig.savefig(save, format='pdf')
+    plt.show()
+
