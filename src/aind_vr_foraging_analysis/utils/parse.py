@@ -605,6 +605,7 @@ def load_session_data(
     
     HarpBehavior = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml")
     HarpOlfactometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/main/device.yml")
+    HarpClock = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.clocksynchronizer/main/device.yml")
     HarpAnalogInput = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml")
     HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill-driver/main/device.yml")
     HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/device.yml")
@@ -666,6 +667,14 @@ def load_session_data(
             device=HarpStepperDriver, 
             path=session_path_behavior / "StepperDriver.harp", 
             name="stepper_driver", 
+            autoload=False,
+            remove_suffix=suffix)
+        
+    if 'ClockGenerator.harp' in os.listdir(session_path_behavior):
+        _out_dict["harp_clock"] = data_io.HarpSource(
+            device=HarpClock, 
+            path=session_path_behavior / "ClockGenerator.harp", 
+            name="clock", 
             autoload=False,
             remove_suffix=suffix)
         
@@ -1202,12 +1211,17 @@ def parse_dataframe(data: pd.DataFrame):
     active_site["label"] = np.where(
         active_site["label"] == "Reward", "RewardSite", active_site["label"]
     )
-    active_site.rename(columns={"startPosition": "start_position", 
-                                "treadmill_specification.friction.distribution_parameters.value" : 'friction'}, inplace=True)
-
-    # Crop and rename columns
-    active_site = active_site[["label", "start_position", "length", "friction"]]
     
+    if "treadmill_specification.friction.distribution_parameters.value" in active_site.columns:
+        active_site.rename(columns={"startPosition": "start_position", 
+                                    "treadmill_specification.friction.distribution_parameters.value" : 'friction'}, inplace=True)
+
+        # Crop and rename columns
+        active_site = active_site[["label", "start_position", "length", "friction"]]
+    else:
+        active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
+        active_site = active_site[["label", "start_position", "length"]]
+        
     # Add the postpatch label
     active_site['previous_epoch'] = active_site['label'].shift(-1)
     active_site['label'] = np.where(active_site['label'] == active_site['previous_epoch'], 'PostPatch', active_site['label'])
