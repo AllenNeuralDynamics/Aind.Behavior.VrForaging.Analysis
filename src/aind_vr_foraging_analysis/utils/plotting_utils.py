@@ -1043,7 +1043,7 @@ def raster_with_velocity(
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
     sns.despine()
-    ax1.set_ylim(-1, max(active_site.active_patch) + 1)g
+    ax1.set_ylim(-1, max(active_site.active_patch) + 1)
     
     if active_site.groupby('active_patch').time_since_entry.min().min() < -50:
         time_left = -50
