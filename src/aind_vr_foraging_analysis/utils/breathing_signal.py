@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy.fft import fft, ifft
-from scipy.signal import butter, filtfilt, iirnotch, find_peaks, savgol_filter
+from scipy.signal import butter, filtfilt, lfilter, iirnotch, find_peaks, savgol_filter
 
 
 def moving_average(data, window_size):
@@ -34,7 +34,7 @@ def moving_average(data, window_size):
     return smoothed_data
 
 
-def apply_filter(data, f_notch=60, Q=200, fs=250):
+def apply_notch_filter(data, f_notch=60, Q=200, fs=250):
     """
     Apply a notch filter to remove 60 Hz noise
 
@@ -53,10 +53,10 @@ def apply_filter(data, f_notch=60, Q=200, fs=250):
         dataframe with the filtered data.
     """
     # Generate sample signal
-    b, a = signal.iirnotch(f_notch, Q, fs)
+    b, a = iirnotch(f_notch, Q, fs)
 
     # Apply the notch filter to the signal
-    data = signal.lfilter(b, a, data)
+    data = lfilter(b, a, data)
 
     return data
 
