@@ -42,6 +42,28 @@ color_dict_label = {'Ethyl Butyrate': color1, 'Alpha-pinene': color2, 'Amyl Acet
                     '2-Heptanone' : color2, 'Methyl Acetate': color1, 'Fenchone': color3, '2,3-Butanedione': color4,
                     'Methyl Butyrate': color1}
 
+def solve_quadratic(y, a, b, c):
+    # Adjust c for y
+    c -= y
+    # Calculate the discriminant
+    discriminant = b**2 - 4*a*c
+    
+    if discriminant < 0:
+        return "No real solutions"
+    elif discriminant == 0:
+        # One solution
+        x = -b / (2 * a)
+        return [x]
+    else:
+        # Two solutions
+        x1 = (-b + math.sqrt(discriminant)) / (2 * a)
+        x2 = (-b - math.sqrt(discriminant)) / (2 * a)
+        return [x1, x2]
+    
+# Define a quadratic model function to fit
+def quadratic_model(x, a, b, c):
+    return a * x**2 + b * x + c
+
 # Define exponential function
 def exponential_func(x, a, b):
     return a * np.exp(b * x)
@@ -108,7 +130,7 @@ def summary_main_variables(general_df,
     """
             
     fig,ax = plt.subplots(2,3, figsize=(9,9))
-    if condition == 'session_number':
+    if condition == 'session_n':
         plt.suptitle(f'{general_df.mouse.iloc[0]} {experiment}')
     else:
         plt.suptitle(experiment)
@@ -200,7 +222,6 @@ def summary_main_variables(general_df,
         plt.savefig(results_path+f'/summary_mouse.pdf', dpi=300, bbox_inches='tight')
     plt.show()
 
-
 def across_sessions_one_plot(summary_df, variable, save=False):
     experiments = summary_df['experiment'].unique()
     palette = sns.color_palette("tab10", len(experiments))
@@ -215,7 +236,7 @@ def across_sessions_one_plot(summary_df, variable, save=False):
     max_value = summary_df[variable].max()
     for i, mouse in enumerate(summary_df.mouse.unique()):
         fig = plt.figure(figsize=(20,6))
-        sns.scatterplot(summary_df.loc[(summary_df.mouse == mouse)], x='session_number', size="visit_number", hue='experiment', style='odor_label', sizes=(30, 500), y=variable, 
+        sns.scatterplot(summary_df.loc[(summary_df.mouse == mouse)], x='session_n', size="visit_number", hue='experiment', style='odor_label', sizes=(30, 500), y=variable, 
                         palette=color_dict_experiment,  alpha=0.7,
                         markers=style_dict_odor_label)
 
@@ -237,11 +258,11 @@ def across_sessions_multi_plot(summary_df, variable, condition: str = 'None', sa
         plt.suptitle(f'{summary_df.mouse.iloc[0]}')
         
     for i, experiment in enumerate(summary_df.experiment.unique()):
-        ax = plt.subplot(2, 3, i + 1)
+        ax = plt.subplot(2, 4, i + 1)
             
-        sns.scatterplot(summary_df.loc[(summary_df.experiment == experiment)], x='within_session_number', size="visit_number", hue='odor_label', sizes=(30, 500), y=variable, palette=color_dict_label, ax=ax, legend=False, alpha=0.7)
+        sns.scatterplot(summary_df.loc[(summary_df.experiment == experiment)], x='within_session_n', size="visit_number", hue='odor_label', sizes=(30, 500), y=variable, palette=color_dict_label, ax=ax, legend=False, alpha=0.7)
 
-        sns.lineplot(x='within_session_number', y=variable, hue='odor_label', palette = color_dict_label,  legend=False,  data=summary_df.loc[(summary_df.experiment == experiment)], marker='', ax=ax)
+        sns.lineplot(x='within_session_n', y=variable, hue='odor_label', palette = color_dict_label,  legend=False,  data=summary_df.loc[(summary_df.experiment == experiment)], marker='', ax=ax)
 
         plt.title(f'{experiment}')
         sns.despine()
@@ -251,3 +272,60 @@ def across_sessions_multi_plot(summary_df, variable, condition: str = 'None', sa
         fig.savefig(save, format='pdf')
     plt.show()
 
+def plot_velocity_across_sessions(cum_velocity, save=False, xlim = [-1, 2]):
+    fig = plt.figure(figsize=(12,22))
+
+    fig.add_subplot(5,2,1)
+    sns.lineplot(data=cum_velocity.loc[cum_velocity.cropped==True], x='times', y='speed', hue='experiment',  errorbar=None, legend=True)
+    plt.xlim(xlim[0], max(cum_velocity.loc[cum_velocity.cropped==True].times))
+    plt.ylim(0, 50)
+    plt.fill_betweenx([-5, 50], -1, 0, color=color1, alpha=0.2)
+    plt.fill_betweenx([-5, 50],0, 15, color='grey', alpha=0.2)
+    plt.xlabel('Time from inter-patch start (s)')
+
+    i=0
+    for experiment, colors in zip(cum_velocity.experiment.unique(), ['Blues', 'Oranges', 'Greens', 'Reds', 'Purples', 'Purples', 'Greys', 'inferno']):
+        i+=1
+        fig.add_subplot(5,2,1+i)
+        sns.lineplot(data=cum_velocity.loc[(cum_velocity.cropped==True)&(cum_velocity.experiment==experiment)], x='times', y='speed', 
+                    hue='within_session_n', palette=colors, errorbar=None, alpha=0.8)
+        plt.xlim(xlim[0], max(cum_velocity.loc[cum_velocity.cropped==True].times))
+        plt.ylim(0, 50)
+        plt.fill_betweenx([-5, 50], -1, 0, color=color1, alpha=0.2)
+        plt.fill_betweenx([-5, 50],0, 15, color='grey', alpha=0.2)
+        plt.xlabel('Time from inter-patch start (s)')
+        plt.ylabel('Velocity (cm/s)')
+        plt.title(experiment)
+        plt.legend(borderaxespad=0., title='Session')
+        
+    plt.tight_layout()
+    sns.despine()
+    plt.show()
+    if save:
+        save.savefig(fig)
+        
+def torque_plots(cum_torque, limits: list = [1500, 2400], save= False):
+    fig = plt.figure(figsize=(12,4))
+    fig.add_subplot(121)
+
+    sns.lineplot(data=cum_torque.loc[cum_torque['align'] =='onset'], x='times', y='Torque', hue='experiment', errorbar=None, legend=False, alpha=0.7)
+    plt.xlim(-1, 15)
+    plt.ylim(limits)
+    sns.despine()
+    plt.fill_betweenx(limits, -1, 0, color=color1, alpha=0.2)
+    plt.fill_betweenx(limits,0, 15, color='grey', alpha=0.2)
+    plt.xlabel('Time from inter-patch start (s)')
+
+    fig.add_subplot(122)
+    sns.lineplot(data=cum_torque.loc[cum_torque['align'] =='offset'], x='times', y='Torque',  hue='experiment', errorbar=None, alpha=0.7)
+    plt.xlim(-5, 2)
+    plt.ylim(limits)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    plt.fill_betweenx(limits, -15, 0, color='grey', alpha=0.2)
+    plt.fill_betweenx(limits, 0, 2, color=color1, alpha=0.2)
+    plt.xlabel('Time from interpatch end (s)')
+    sns.despine()
+    plt.tight_layout()
+    plt.show()
+    if save:
+        save.savefig(fig)
