@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aind-behavior-vr-foraging-analysis"
+name = "aind-behavior-vrforaging-analysis"
 description = ""
 license = {text = "MIT"}
 requires-python = ">=3.11"
