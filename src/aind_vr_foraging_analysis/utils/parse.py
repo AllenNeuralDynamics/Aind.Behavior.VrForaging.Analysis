@@ -641,6 +641,9 @@ def load_session_data(
 
     elif "Config" in os.listdir(session_path_config):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_config / "Config", name="config", autoload=True)
+        
+    else:
+        _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
 
     return _out_dict
 
@@ -1099,6 +1102,12 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
         print("Calibration found")
+        # Create a mapping dictionary from the nested structure
+        mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
+
+        # Replace numbers in the dataframe column with the corresponding odorant values
+        df_patch['odor_label'] = df_patch['odor_label'].replace(mapping)
+        
     else:
         df_patch = df_patch.drop(columns=["odor_label"])
         df_patch.rename(columns={"patch_label": "odor_label"}, inplace=True)
