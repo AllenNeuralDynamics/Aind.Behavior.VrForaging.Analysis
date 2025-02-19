@@ -108,7 +108,21 @@ class ContinuousData:
 
     def encoder_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
-        if self.current_version >= Version("0.3.0"):
+        if self.current_version >= Version("0.4.0"):
+            self.data["harp_treadmill"].streams.SensorData.load_from_file()
+            sensor_data = self.data["harp_treadmill"].streams.SensorData.data
+
+            wheel_size = self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]['output']["wheel_diameter"]
+            PPR = self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]['output']["pulses_per_revolution"]
+            invert_direction = (
+                self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]['output']["invert_direction"]
+            )
+
+            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            sensor_data["Encoder"] = sensor_data.Encoder.diff()
+            dispatch = 250
+            
+        elif self.current_version >= Version("0.3.0") and self.current_version < Version("0.4.0"):
             self.data["harp_treadmill"].streams.SensorData.load_from_file()
             sensor_data = self.data["harp_treadmill"].streams.SensorData.data
 
@@ -118,26 +132,8 @@ class ContinuousData:
                 self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["invert_direction"]
             )
 
-            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-            sensor_data["diff"] = sensor_data.Encoder.diff()
-
-            if parser == "filter":
-                sensor_data["velocity"] = (
-                    sensor_data["diff"] * converter
-                ) * 250  # To be replaced by dispatch rate when it works
-                sensor_data["distance"] = sensor_data["diff"] * converter
-                sensor_data = processing.fir_filter(sensor_data, "velocity", 50)
-                encoder = sensor_data[["filtered_velocity"]]
-
-            elif parser == "resampling":
-                encoder = sensor_data["diff"]
-                encoder = encoder.apply(lambda x: x * converter)
-                encoder.index = pd.to_datetime(encoder.index, unit="s")
-                encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
-                encoder.index = encoder.index - pd.to_datetime(0)
-                encoder.index = encoder.index.total_seconds()
-                encoder = encoder.to_frame()
-                encoder.rename(columns={"diff": "filtered_velocity"}, inplace=True)
+            sensor_data["Encoder"] = sensor_data.Encoder.diff()
+            dispatch = 250
 
         else:
             self.data["harp_behavior"].streams.AnalogData.load_from_file()
@@ -162,25 +158,26 @@ class ContinuousData:
                 PPR = self.data["config"].streams[self.rig].data["treadmill"][pulses]
                 invert_direction = self.data["config"].streams[self.rig].data["treadmill"][invert]
 
-            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            dispatch = 1000
+        
+        converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+        if parser == "filter":
+            sensor_data["velocity"] = (
+                sensor_data["Encoder"] * converter
+            ) * dispatch  # To be replaced by dispatch rate whe it works
+            sensor_data["distance"] = sensor_data["Encoder"] * converter
+            sensor_data = processing.fir_filter(sensor_data, "velocity", 50)
+            encoder = sensor_data[["filtered_velocity"]]
 
-            if parser == "filter":
-                sensor_data["velocity"] = (
-                    sensor_data["Encoder"] * converter
-                ) * 1000  # To be replaced by dispatch rate whe it works
-                sensor_data["distance"] = sensor_data["Encoder"] * converter
-                sensor_data = processing.fir_filter(sensor_data, "velocity", 50)
-                encoder = sensor_data[["filtered_velocity"]]
-
-            elif parser == "resampling":
-                encoder = sensor_data["Encoder"]
-                encoder = encoder.apply(lambda x: x * converter)
-                encoder.index = pd.to_datetime(encoder.index, unit="s")
-                encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
-                encoder.index = encoder.index - pd.to_datetime(0)
-                encoder.index = encoder.index.total_seconds()
-                encoder = encoder.to_frame()
-                encoder.rename(columns={"Encoder": "filtered_velocity"}, inplace=True)
+        elif parser == "resampling":
+            encoder = sensor_data["Encoder"]
+            encoder = encoder.apply(lambda x: x * converter)
+            encoder.index = pd.to_datetime(encoder.index, unit="s")
+            encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
+            encoder.index = encoder.index - pd.to_datetime(0)
+            encoder.index = encoder.index.total_seconds()
+            encoder = encoder.to_frame()
+            encoder.rename(columns={"Encoder": "filtered_velocity"}, inplace=True)
 
         self.encoder_data = encoder
 
@@ -330,8 +327,16 @@ class RewardFunctions:
                     patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["value"],
                     500,
                 )
-            else:
-
+            elif(
+                patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
+                == 'LookupTableFunction' ):
+                odor_label = patches["label"]
+                y = np.array(
+                    patches[self.schema_properties.reward_specification]['reward_function']['amount']['lut_values']
+                )
+            elif(
+                patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
+                == 'PowerFunction' ):
                 odor_label = patches["label"]
                 a = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["a"]
                 b = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["b"]
@@ -343,9 +348,9 @@ class RewardFunctions:
 
             dict_odor[odor_label] = y
 
-        for index, row in self.reward_sites.iterrows():
+        for index, row in self.reward_sites.iterrows():           
             self.reward_sites.at[index, "reward_amount"] = np.around(
-                dict_odor[row["odor_label"]][int(row["cumulative_rewards"])], 3
+                dict_odor[row["patch_label"]][int(row["cumulative_rewards"])], 3
             )
 
         return self.reward_sites
@@ -377,8 +382,16 @@ class RewardFunctions:
                     patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["value"],
                     500,
                 )
-            else:
-
+            elif(
+                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
+                == 'LookupTableFunction' ):
+                odor_label = patches["label"]
+                y = np.array(
+                    patches[self.schema_properties.reward_specification]['reward_function']['probability']['lut_values']
+                )
+            elif(
+                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
+                == 'PowerFunction' ):
                 odor_label = patches["label"]
                 a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
                 b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
@@ -393,7 +406,7 @@ class RewardFunctions:
         #### ----------- Need to add the modification for On Choice, right now specific for OnReward
         for index, row in self.reward_sites.iterrows():
             self.reward_sites.at[index, "reward_probability"] = np.around(
-                dict_odor[row["odor_label"]][int(row["cumulative_rewards"])], 3
+                dict_odor[row["patch_label"]][int(row["cumulative_rewards"])], 3
             )
 
     def reward_available(self):
@@ -423,20 +436,29 @@ class RewardFunctions:
                 continue
 
             if (
-                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
+                patches[self.schema_properties.reward_specification]["reward_function"]["available"]["function_type"]
                 == "ConstantFunction"
             ):
                 odor_label = patches["label"]
                 y = np.repeat(
-                    patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["value"],
+                    patches[self.schema_properties.reward_specification]["reward_function"]['available']["value"],
                     500,
                 )
-            else:
+            elif(
+                patches[self.schema_properties.reward_specification]["reward_function"]["available"]["function_type"]
+                == 'LookupTableFunction' ):
                 odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
-                b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
-                c = -patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["c"]
-                d = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["d"]
+                y = np.array(
+                    patches[self.schema_properties.reward_specification]['reward_function']['available']['lut_values']
+                )
+            elif(
+                patches[self.schema_properties.reward_specification]["reward_function"]["available"]["function_type"]
+                == 'PowerFunction' ):
+                odor_label = patches["label"]
+                a = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["a"]
+                b = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["b"]
+                c = -patches[self.schema_properties.reward_specification]["reward_function"]["available"]["c"]
+                d = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["d"]
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -445,7 +467,7 @@ class RewardFunctions:
 
         for index, row in self.reward_sites.iterrows():
             self.reward_sites.at[index, "reward_available"] = np.around(
-                dict_odor[row["odor_label"]][int(row["cumulative_rewards"])], 3
+                dict_odor[row["patch_label"]][int(row["cumulative_rewards"])], 3
             )
 
         return self.reward_sites
@@ -641,9 +663,10 @@ def load_session_data(
 
     elif "Config" in os.listdir(session_path_config):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_config / "Config", name="config", autoload=True)
-        
+        _out_dict["endsession"] = data_io.ConfigSource(path=session_path_config, name="config", autoload=True).streams['endsession']
     else:
         _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
+        _out_dict["endsession"] = _out_dict["config"].streams["endsession"]
 
     return _out_dict
 
@@ -1100,26 +1123,28 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label"}, inplace=True)
     df_patch = df_patch[["patch_label", "active_patch", "odor_label"]]
 
+    all_epochs = pd.merge(active_site, df_patch, on="active_patch", how="left")
+    all_epochs.index = active_site.index
+    
     if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
         print("Calibration found")
         # Create a mapping dictionary from the nested structure
         mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
 
         # Replace numbers in the dataframe column with the corresponding odorant values
-        df_patch['odor_label'] = df_patch['odor_label'].replace(mapping)
+        all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
         
     else:
-        df_patch = df_patch.drop(columns=["odor_label"])
-        df_patch.rename(columns={"patch_label": "odor_label"}, inplace=True)
-
-    all_epochs = pd.merge(active_site, df_patch, on="active_patch", how="left")
-    all_epochs.index = active_site.index
+        all_epochs["odor_label"] = all_epochs['patch_label']
 
     # Count 'RewardSite' occurrences within each group
     all_epochs["visit_number"] = all_epochs[all_epochs["label"] == "RewardSite"].groupby(group).cumcount()
     all_epochs["END"] = all_epochs.index.to_series().shift(-1)
     all_epochs.index.name = "START"
 
+    ## Add last timestamp
+    all_epochs.END.iloc[-1] = data['endsession'].data['timestamp']    
+    
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
 
@@ -1147,15 +1172,15 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     reward_sites = all_epochs[all_epochs["label"] == "RewardSite"]
 
-    # Iterate through `reward_sites` and find the relevant slices in one go
-    reward_sites_index = reward_sites.index
-
+    if reward_sites.empty:
+        print("No reward sites found")
+        return all_epochs
+    
     # Loop over the reward_sites
-    for idx in range(len(reward_sites_index) - 1):
+    for current_idx, row in reward_sites.iterrows():
         # Define the current and next reward site index
-        current_idx = reward_sites_index[idx]
-        next_idx = reward_sites_index[idx + 1]
-
+        next_idx = row.END
+        
         # Find slices based on the current and next indices
         choice = choiceFeedback[(choiceFeedback.index >= current_idx) & (choiceFeedback.index < next_idx)]
         reward_in_site = water[(water.index >= current_idx) & (water.index < next_idx)]
@@ -1165,16 +1190,6 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         stop_cues.append(choice.index[0] if len(choice) > 0 else np.nan)
         water_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
         successful_waits.append(waits.index[0] if len(waits) > 0 else np.nan)
-
-    # For the last site, handle the edge case
-    last_idx = reward_sites_index[-1]
-    choice = choiceFeedback[choiceFeedback.index >= last_idx]
-    reward_in_site = water[water.index >= last_idx]
-    waits = succesfull_wait[succesfull_wait.index >= last_idx]
-
-    stop_cues.append(choice.index[0] if len(choice) > 0 else np.nan)
-    water_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
-    successful_waits.append(waits.index[0] if len(waits) > 0 else np.nan)
 
     # Assign the results to the DataFrame
     reward_sites["stop_cue"] = stop_cues
