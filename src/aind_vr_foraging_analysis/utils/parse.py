@@ -6,7 +6,6 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
-from harp.reader import create_reader
 
 import aind_vr_foraging_analysis.data_io as data_io
 from aind_vr_foraging_analysis.utils import processing
@@ -24,6 +23,7 @@ _payloadtypes = {
     136: np.dtype(np.int64),
     68: np.dtype(np.float32),
 }
+
 
 class TaskSchemaProperties:
     """This class is used to store the schema properties of the task configuration.
@@ -54,8 +54,8 @@ class TaskSchemaProperties:
         self._data["config"].streams[self.tasklogic].load_from_file()
 
         if (
-            "environment_statistics" in self._data["config"].streams[self.tasklogic].data or 
-            'task_parameters' in self._data["config"].streams[self.tasklogic].data
+            "environment_statistics" in self._data["config"].streams[self.tasklogic].data
+            or "task_parameters" in self._data["config"].streams[self.tasklogic].data
         ):
             self.environment = "environment_statistics"
             self.reward_specification = "reward_specification"
@@ -66,19 +66,14 @@ class TaskSchemaProperties:
             self.reward_specification = "rewardSpecifications"
             self.odor_specifications = "odorSpecifications"
             self.odor_index = "odorIndex"
-            
-        if 'task_parameters' in self._data["config"].streams[self.tasklogic].data:
+
+        if "task_parameters" in self._data["config"].streams[self.tasklogic].data:
             self.patches = (
-                self._data["config"]
-                .streams[self.tasklogic]
-                .data['task_parameters'][self.environment]["patches"]
-        )   
-        else:
-            self.patches = (
-                self._data["config"]
-                .streams[self.tasklogic]
-                .data[self.environment]["patches"]
+                self._data["config"].streams[self.tasklogic].data["task_parameters"][self.environment]["patches"]
             )
+        else:
+            self.patches = self._data["config"].streams[self.tasklogic].data[self.environment]["patches"]
+
 
 class ContinuousData:
     def __init__(self, data, load_continuous: bool = True):
@@ -86,20 +81,18 @@ class ContinuousData:
         self.data = data
 
         self.data["harp_behavior"].streams.OutputSet.load_from_file()
-        self.data[
-            "harp_behavior"
-        ].streams.PulseSupplyPort0.load_from_file()  # Duration of each pulse
+        self.data["harp_behavior"].streams.PulseSupplyPort0.load_from_file()  # Duration of each pulse
         self.data["harp_behavior"].streams.DigitalInputState.load_from_file()
         if "rig_input" in self.data["config"].streams.keys():
             self.rig = "rig_input"
         else:
             self.rig = "Rig"
         self.data["config"].streams[self.rig].load_from_file()
-        
-        if 'schema_version' in self.data["config"].streams[self.rig].data:
-            self.current_version=Version(self.data["config"].streams[self.rig].data['schema_version'])
-        elif 'version' in self.data["config"].streams[self.rig].data:
-            self.current_version=Version(self.data["config"].streams[self.rig].data['version'])
+
+        if "schema_version" in self.data["config"].streams[self.rig].data:
+            self.current_version = Version(self.data["config"].streams[self.rig].data["schema_version"])
+        elif "version" in self.data["config"].streams[self.rig].data:
+            self.current_version = Version(self.data["config"].streams[self.rig].data["version"])
         else:
             self.current_version = Version("0.0.0")
 
@@ -107,202 +100,156 @@ class ContinuousData:
             self.encoder_data = self.encoder_loading()
             self.choice_feedback = self.choice_feedback_loading()
             self.lick_onset, self.lick_offset = self.lick_onset_loading()
-            self.give_reward, self.pulse_duration, self.valve_output_pulse = (
-                self.water_valve_loading()
-            )
+            self.give_reward, self.pulse_duration = self.water_valve_loading()
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
             self.torque_data, self.brake_data = self.torque_loading()
             self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
-    def encoder_loading(self, parser: str = 'filter'):
+    def encoder_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
         if self.current_version >= Version("0.3.0"):
             self.data["harp_treadmill"].streams.SensorData.load_from_file()
             sensor_data = self.data["harp_treadmill"].streams.SensorData.data
-            
-            wheel_size = (
-                self.data["config"]
-                .streams[self.rig]
-                .data["harp_treadmill"]["calibration"]["wheel_diameter"]
-            )
-            PPR = (
-                self.data["config"]
-                .streams[self.rig]
-                .data["harp_treadmill"]["calibration"]["pulses_per_revolution"]
-            )
-            invert_direction = (
-                self.data["config"]
-                .streams[self.rig]
-                .data["harp_treadmill"]["calibration"]["invert_direction"]
-            )
-            
-            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-            sensor_data['diff'] = sensor_data.Encoder.diff()
 
-            if parser == 'filter':
-                sensor_data["velocity"] = (sensor_data["diff"] * converter) * 250 # To be replaced by dispatch rate when it works
-                sensor_data["distance"] = (sensor_data["diff"] * converter)
-                sensor_data = processing.fir_filter(sensor_data, 'velocity', 50)
-                encoder = sensor_data[['filtered_velocity']]
-                
-            elif parser == 'resampling':
-                encoder= sensor_data['diff']
-                encoder = encoder.apply(lambda x : x * converter)
+            wheel_size = self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["wheel_diameter"]
+            PPR = self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["pulses_per_revolution"]
+            invert_direction = (
+                self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["invert_direction"]
+            )
+
+            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            sensor_data["diff"] = sensor_data.Encoder.diff()
+
+            if parser == "filter":
+                sensor_data["velocity"] = (
+                    sensor_data["diff"] * converter
+                ) * 250  # To be replaced by dispatch rate when it works
+                sensor_data["distance"] = sensor_data["diff"] * converter
+                sensor_data = processing.fir_filter(sensor_data, "velocity", 50)
+                encoder = sensor_data[["filtered_velocity"]]
+
+            elif parser == "resampling":
+                encoder = sensor_data["diff"]
+                encoder = encoder.apply(lambda x: x * converter)
                 encoder.index = pd.to_datetime(encoder.index, unit="s")
                 encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
-                encoder.index = (encoder.index - pd.to_datetime(0))
+                encoder.index = encoder.index - pd.to_datetime(0)
                 encoder.index = encoder.index.total_seconds()
                 encoder = encoder.to_frame()
-                encoder.rename(columns={'diff': 'filtered_velocity'}, inplace=True)
-                        
+                encoder.rename(columns={"diff": "filtered_velocity"}, inplace=True)
+
         else:
             self.data["harp_behavior"].streams.AnalogData.load_from_file()
             sensor_data = self.data["harp_behavior"].streams.AnalogData.data
-            if 'settings' in self.data["config"].streams[self.rig].data["treadmill"].keys():
-                wheel_size = (
-                    self.data["config"]
-                    .streams[self.rig]
-                    .data["treadmill"]["settings"]["wheel_diameter"]
-                )
-                PPR = (
-                    self.data["config"]
-                    .streams[self.rig]
-                    .data["treadmill"]["settings"]["pulses_per_revolution"]
-                )
+            if "settings" in self.data["config"].streams[self.rig].data["treadmill"].keys():
+                wheel_size = self.data["config"].streams[self.rig].data["treadmill"]["settings"]["wheel_diameter"]
+                PPR = self.data["config"].streams[self.rig].data["treadmill"]["settings"]["pulses_per_revolution"]
                 invert_direction = (
-                    self.data["config"]
-                    .streams[self.rig]
-                    .data["treadmill"]["settings"]["invert_direction"]
+                    self.data["config"].streams[self.rig].data["treadmill"]["settings"]["invert_direction"]
                 )
             else:
-                if 'wheel_diameter' in self.data["config"].streams[self.rig].data["treadmill"].keys():
-                    wheel_diameter ="wheel_diameter"
+                if "wheel_diameter" in self.data["config"].streams[self.rig].data["treadmill"].keys():
+                    wheel_diameter = "wheel_diameter"
                     pulses = "pulses_per_revolution"
                     invert = "invert_direction"
                 else:
                     wheel_diameter = "wheelDiameter"
                     pulses = "pulsesPerRevolution"
                     invert = "invertDirection"
-                    
-                wheel_size = (
-                    self.data["config"]
-                    .streams[self.rig]
-                    .data["treadmill"][wheel_diameter]
-                )
-                PPR = (
-                    self.data["config"]
-                    .streams[self.rig]
-                    .data["treadmill"][pulses]
-                )
-                invert_direction = (
-                    self.data["config"]
-                    .streams[self.rig]
-                    .data["treadmill"][invert]
-                )
-            
+
+                wheel_size = self.data["config"].streams[self.rig].data["treadmill"][wheel_diameter]
+                PPR = self.data["config"].streams[self.rig].data["treadmill"][pulses]
+                invert_direction = self.data["config"].streams[self.rig].data["treadmill"][invert]
+
             converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
-            
-            if parser == 'filter':
-                sensor_data["velocity"] = (sensor_data["Encoder"] * converter) * 1000 # To be replaced by dispatch rate whe it works
-                sensor_data["distance"] = (sensor_data["Encoder"] * converter)
-                sensor_data = processing.fir_filter(sensor_data, 'velocity', 50)
-                encoder = sensor_data[['filtered_velocity']]
-            
-            elif parser == 'resampling':
-                encoder= sensor_data['Encoder']
-                encoder = encoder.apply(lambda x : x * converter)
+
+            if parser == "filter":
+                sensor_data["velocity"] = (
+                    sensor_data["Encoder"] * converter
+                ) * 1000  # To be replaced by dispatch rate whe it works
+                sensor_data["distance"] = sensor_data["Encoder"] * converter
+                sensor_data = processing.fir_filter(sensor_data, "velocity", 50)
+                encoder = sensor_data[["filtered_velocity"]]
+
+            elif parser == "resampling":
+                encoder = sensor_data["Encoder"]
+                encoder = encoder.apply(lambda x: x * converter)
                 encoder.index = pd.to_datetime(encoder.index, unit="s")
                 encoder = encoder.resample("33ms").sum().interpolate(method="linear") / 0.033
-                encoder.index = (encoder.index - pd.to_datetime(0))
+                encoder.index = encoder.index - pd.to_datetime(0)
                 encoder.index = encoder.index.total_seconds()
                 encoder = encoder.to_frame()
-                encoder.rename(columns={'Encoder': 'filtered_velocity'}, inplace=True)
+                encoder.rename(columns={"Encoder": "filtered_velocity"}, inplace=True)
 
         self.encoder_data = encoder
 
         return self.encoder_data
-    
-    def torque_loading(self, parser: str = 'filter'):
+
+    def torque_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
         if self.current_version >= Version("0.3.0"):
             self.data["harp_treadmill"].streams.SensorData.load_from_file()
-            torque_data = self.data["harp_treadmill"].streams.SensorData.data[['Torque', 'TorqueLoadCurrent']]
-            
-            self.data['harp_treadmill'].streams.BrakeCurrentSetPoint.load_from_file()
-            brake_data = self.data['harp_treadmill'].streams.BrakeCurrentSetPoint.data
+            torque_data = self.data["harp_treadmill"].streams.SensorData.data[["Torque", "TorqueLoadCurrent"]]
+
+            self.data["harp_treadmill"].streams.BrakeCurrentSetPoint.load_from_file()
+            brake_data = self.data["harp_treadmill"].streams.BrakeCurrentSetPoint.data
         return torque_data, brake_data
-            
+
     def choice_feedback_loading(self):
-        self.data['harp_behavior'].streams.PwmStart.load_from_file()
+        self.data["harp_behavior"].streams.PwmStart.load_from_file()
         if self.current_version < Version("0.3.0"):
             # Find responses to Reward site
-            choice_feedback = self.data['harp_behavior'].streams.PwmStart.data.loc[self.data['harp_behavior'].streams.PwmStart.data['PwmDO1'] == True]
+            choice_feedback = self.data["harp_behavior"].streams.PwmStart.data.loc[
+                self.data["harp_behavior"].streams.PwmStart.data["PwmDO1"] == True
+            ]
         else:
-            choice_feedback = self.data['harp_behavior'].streams.PwmStart.data.loc[self.data['harp_behavior'].streams.PwmStart.data['PwmDO2'] == True]
+            choice_feedback = self.data["harp_behavior"].streams.PwmStart.data.loc[
+                self.data["harp_behavior"].streams.PwmStart.data["PwmDO2"] == True
+            ]
         return choice_feedback
 
     def lick_onset_loading(self):
         if "harp_lickometer" in self.data:
             self.data["harp_lickometer"].streams.LickState.load_from_file()
-            licks = (
-                self.data["harp_lickometer"].streams.LickState.data["Channel0"] == True
-            )
+            licks = self.data["harp_lickometer"].streams.LickState.data["Channel0"] == True
             lick_onset = licks.loc[licks == True]
             lick_offset = licks.loc[licks == False]
 
         else:
-            di_state = self.data["harp_behavior"].streams.DigitalInputState.data[
-                "DIPort0"
-            ]
+            di_state = self.data["harp_behavior"].streams.DigitalInputState.data["DIPort0"]
             lick_onset = di_state.loc[di_state == True]
             lick_offset = di_state.loc[di_state == False]
         return lick_onset, lick_offset
 
     def water_valve_loading(self):
-        # Find give reward event
+        # Find hardware reward events
         give_reward = self.data["harp_behavior"].streams.OutputSet.data[["SupplyPort0"]]
         self.give_reward = give_reward.loc[give_reward.SupplyPort0 == True]
 
-        # Find hardware reward events
-        self.pulse_duration = np.median(
-            self.data["harp_behavior"].streams.PulseSupplyPort0.data["PulseSupplyPort0"]
-        )
-        self.valve_output_pulse = self.data["harp_behavior"].streams.OutputSet.data[
-            "SupplyPort0"
-        ]
+        # Pulses delivered for water
+        self.pulse_duration = self.data["harp_behavior"].streams.PulseSupplyPort0.data["PulseSupplyPort0"]
 
-        return self.give_reward, self.pulse_duration, self.valve_output_pulse
+        return self.give_reward, self.pulse_duration
 
     def sniff_data_loading(self):
         if "harp_sniffsensor" in self.data:
             self.data["harp_sniffsensor"].streams.RawVoltage.load_from_file()
             self.breathing = pd.DataFrame(
-                index=self.data["harp_sniffsensor"]
-                .streams.RawVoltage.data["RawVoltage"]
-                .index,
+                index=self.data["harp_sniffsensor"].streams.RawVoltage.data["RawVoltage"].index,
                 columns=["data"],
             )
-            self.breathing["data"] = (
-                self.data["harp_sniffsensor"]
-                .streams.RawVoltage.data["RawVoltage"]
-                .values
-            )
+            self.breathing["data"] = self.data["harp_sniffsensor"].streams.RawVoltage.data["RawVoltage"].values
 
         else:
             ## Breathing
             self.breathing = pd.DataFrame(
-                index=self.data["harp_behavior"]
-                .streams.AnalogData.data["AnalogInput0"]
-                .index,
+                index=self.data["harp_behavior"].streams.AnalogData.data["AnalogInput0"].index,
                 columns=["data"],
             )
-            self.breathing["data"] = (
-                self.data["harp_behavior"]
-                .streams.AnalogData.data["AnalogInput0"]
-                .values
-            )
+            self.breathing["data"] = self.data["harp_behavior"].streams.AnalogData.data["AnalogInput0"].values
         return self.breathing
+
 
 class RewardFunctions:
     """
@@ -368,43 +315,28 @@ class RewardFunctions:
         dict_odor = {}
 
         for patches in self.schema_properties.patches:
-            if (
-                "reward_function"
-                not in patches[self.schema_properties.reward_specification]
-            ):
+            if "reward_function" not in patches[self.schema_properties.reward_specification]:
                 dict_odor[patches["label"]] = np.repeat(
                     patches[self.schema_properties.reward_specification]["amount"], 500
                 )
                 continue
 
             if (
-                patches[self.schema_properties.reward_specification]["reward_function"][
-                    "amount"
-                ]["function_type"]
+                patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
                 == "ConstantFunction"
             ):
                 odor_label = patches["label"]
                 y = np.repeat(
-                    patches[self.schema_properties.reward_specification][
-                        "reward_function"
-                    ]["amount"]["value"],
+                    patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["value"],
                     500,
                 )
             else:
 
                 odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["amount"]["a"]
-                b = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["amount"]["b"]
-                c = -patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["amount"]["c"]
-                d = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["amount"]["d"]
+                a = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["a"]
+                b = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["b"]
+                c = -patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["c"]
+                d = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["d"]
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -429,10 +361,7 @@ class RewardFunctions:
         dict_odor = {}
 
         for patches in self.schema_properties.patches:
-            if (
-                "reward_function"
-                not in patches[self.schema_properties.reward_specification]
-            ):
+            if "reward_function" not in patches[self.schema_properties.reward_specification]:
                 dict_odor[patches["label"]] = np.repeat(
                     patches[self.schema_properties.reward_specification]["probability"],
                     500,
@@ -440,33 +369,21 @@ class RewardFunctions:
                 continue
 
             if (
-                patches[self.schema_properties.reward_specification]["reward_function"][
-                    "probability"
-                ]["function_type"]
+                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
                 == "ConstantFunction"
             ):
                 odor_label = patches["label"]
                 y = np.repeat(
-                    patches[self.schema_properties.reward_specification][
-                        "reward_function"
-                    ]["probability"]["value"],
+                    patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["value"],
                     500,
                 )
             else:
 
                 odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["a"]
-                b = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["b"]
-                c = -patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["c"]
-                d = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["d"]
+                a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
+                b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
+                c = -patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["c"]
+                d = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["d"]
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -494,49 +411,32 @@ class RewardFunctions:
         for patches in self.schema_properties.patches:
 
             # Segment for when the conventions were different. It was always a linear decrease.
-            if (
-                "reward_function"
-                not in patches[self.schema_properties.reward_specification]
-            ):
+            if "reward_function" not in patches[self.schema_properties.reward_specification]:
                 if patches["patchRewardFunction"]["initialRewardAmount"] >= 100:
                     dict_odor[patches["label"]] = np.repeat(100, 500)
                 else:
                     odor_label = patches["label"]
                     initial = patches["patchRewardFunction"]["initialRewardAmount"]
-                    amount = patches[self.schema_properties.reward_specification][
-                        "amount"
-                    ]
+                    amount = patches[self.schema_properties.reward_specification]["amount"]
                     y = initial - amount * x
                     dict_odor[odor_label] = y
                 continue
 
             if (
-                patches[self.schema_properties.reward_specification]["reward_function"][
-                    "probability"
-                ]["function_type"]
+                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
                 == "ConstantFunction"
             ):
                 odor_label = patches["label"]
                 y = np.repeat(
-                    patches[self.schema_properties.reward_specification][
-                        "reward_function"
-                    ]["probability"]["value"],
+                    patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["value"],
                     500,
                 )
             else:
                 odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["a"]
-                b = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["b"]
-                c = -patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["c"]
-                d = patches[self.schema_properties.reward_specification][
-                    "reward_function"
-                ]["probability"]["d"]
+                a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
+                b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
+                c = -patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["c"]
+                d = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["d"]
 
                 # Generate x values
                 y = a * pow(b, -c * x) + d
@@ -552,6 +452,19 @@ class RewardFunctions:
 
 
 def read_harp_bin(file):
+    """
+    Reads binary data from a HARP file and returns it as a pandas DataFrame.
+    Parameters:
+    file (str or file-like object): The path to the HARP binary file or a file-like object.
+
+    Returns:
+    pd.DataFrame or None: A DataFrame containing the parsed data with 'Seconds' as the index.
+                          Returns None if the file is empty.
+    Notes:
+    - The function assumes a specific binary format for the HARP file.
+    - The payload type and size are determined based on the data in the file.
+    - The DataFrame's index is in seconds, calculated from ticks and seconds in the file.
+    """
 
     data = np.fromfile(file, dtype=np.uint8)
 
@@ -592,136 +505,143 @@ def load_session_data(
 ) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
     session_path = Path(session_path)
-    # HarpBehavior = create_reader(device=r"..\..\..\..\harp-tech\device.behavior\device.yml")
-    # HarpOlfactometer = create_reader(
-    #     device=r"..\..\..\harp-tech\device.olfactometer\device.yml"
-    # )
-    # HarpLickometer = create_reader(
-    #     device=r"..\..\..\..\harp-tech\harp.device.lickety-split\software\bonsai\device.yml"
-    # )
-    # HarpSniffsensor = create_reader(
-    #     device=r"..\..\..\harp-tech\harp.device.sniff-detector\software\bonsai\device.yml"
-    # )
-    
-    HarpBehavior = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml")
-    HarpOlfactometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/main/device.yml")
-    HarpClock = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.clocksynchronizer/main/device.yml")
-    HarpAnalogInput = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml")
-    HarpTreadmill = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill-driver/main/device.yml")
-    HarpSniffsensor = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/device.yml")
-    HarpLickometer = data_io.reader_from_url(r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/device.yml")
-    HarpStepperDriver = data_io.reader_from_url(r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml")
+
+    HarpBehavior = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"
+    )
+    HarpOlfactometer = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/main/device.yml"
+    )
+    HarpClock = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/harp-tech/device.clocksynchronizer/main/device.yml"
+    )
+    HarpAnalogInput = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml"
+    )
+    HarpTreadmill = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill-driver/main/device.yml"
+    )
+    HarpSniffsensor = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/device.yml"
+    )
+    HarpLickometer = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/device.yml"
+    )
+    HarpStepperDriver = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml"
+    )
+
     session_path_behavior = session_path
     session_path_config = session_path
-    suffix='Register__'
-    
+    suffix = "Register__"
+
     # Work around the change in the folder structure
-    if 'behavior' in os.listdir(session_path): 
-        session_path_behavior = session_path / 'behavior'
-        suffix=None
+    if "behavior" in os.listdir(session_path):
+        session_path_behavior = session_path / "behavior"
+        suffix = None
     if "other" in os.listdir(session_path):
-        session_path_config = session_path / 'other'
-        
-    if 'Behavior.harp' in os.listdir(session_path_behavior):
+        session_path_config = session_path / "other"
+
+    if "Behavior.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
-            path= session_path_behavior / "Behavior.harp",
-            name="behavior",
-            autoload=False, 
-            remove_suffix=suffix)
-    elif 'Behavior' in os.listdir(session_path_behavior):
-        print('Old behavior loading')
-        _out_dict["harp_behavior"] = data_io.HarpSource(
-            device=HarpBehavior,
-            path= session_path_behavior / "Behavior",
+            path=session_path_behavior / "Behavior.harp",
             name="behavior",
             autoload=False,
-            remove_suffix=suffix)    
-        
-    if 'Olfactometer.harp' in os.listdir(session_path_behavior):
+            remove_suffix=suffix,
+        )
+    elif "Behavior" in os.listdir(session_path_behavior):
+        print("Old behavior loading")
+        _out_dict["harp_behavior"] = data_io.HarpSource(
+            device=HarpBehavior,
+            path=session_path_behavior / "Behavior",
+            name="behavior",
+            autoload=False,
+            remove_suffix=suffix,
+        )
+
+    if "Olfactometer.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_olfactometer"] = data_io.HarpSource(
-            device=HarpOlfactometer, 
-            path=session_path_behavior / "Olfactometer.harp", 
-            name="olfactometer", 
+            device=HarpOlfactometer,
+            path=session_path_behavior / "Olfactometer.harp",
+            name="olfactometer",
             autoload=False,
-            remove_suffix=suffix)
-        
-    if 'Lickometer.harp' in os.listdir(session_path_behavior):
+            remove_suffix=suffix,
+        )
+
+    if "Lickometer.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_lickometer"] = data_io.HarpSource(
-            device=HarpLickometer, 
-            path=session_path_behavior / "Lickometer.harp", 
-            name="lickometer", 
+            device=HarpLickometer,
+            path=session_path_behavior / "Lickometer.harp",
+            name="lickometer",
             autoload=False,
-            remove_suffix=suffix)
-        
-    if 'SniffDetector.harp' in os.listdir(session_path_behavior):
+            remove_suffix=suffix,
+        )
+
+    if "SniffDetector.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_sniffsensor"] = data_io.HarpSource(
-            device=HarpSniffsensor, 
-            path=session_path_behavior / "SniffDetector.harp", 
-            name="sniffdetector", 
+            device=HarpSniffsensor,
+            path=session_path_behavior / "SniffDetector.harp",
+            name="sniffdetector",
             autoload=False,
-            remove_suffix=suffix)
-    
-    if 'StepperDriver.harp' in os.listdir(session_path_behavior):
+            remove_suffix=suffix,
+        )
+
+    if "StepperDriver.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_stepperdriver"] = data_io.HarpSource(
-            device=HarpStepperDriver, 
-            path=session_path_behavior / "StepperDriver.harp", 
-            name="stepper_driver", 
+            device=HarpStepperDriver,
+            path=session_path_behavior / "StepperDriver.harp",
+            name="stepper_driver",
             autoload=False,
-            remove_suffix=suffix)
-        
-    if 'ClockGenerator.harp' in os.listdir(session_path_behavior):
+            remove_suffix=suffix,
+        )
+
+    if "ClockGenerator.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_clock"] = data_io.HarpSource(
-            device=HarpClock, 
-            path=session_path_behavior / "ClockGenerator.harp", 
-            name="clock", 
+            device=HarpClock,
+            path=session_path_behavior / "ClockGenerator.harp",
+            name="clock",
             autoload=False,
-            remove_suffix=suffix)
-        
-    if 'AnalogInput.harp' in os.listdir(session_path_behavior):
+            remove_suffix=suffix,
+        )
+
+    if "Treadmill.harp" in os.listdir(session_path_behavior):
+        _out_dict["harp_treadmill"] = data_io.HarpSource(
+            device=HarpTreadmill, path=session_path_behavior / "Treadmill.harp", name="treadmill", autoload=False
+        )
+
+    if "AnalogInput.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_analog"] = data_io.HarpSource(
-            device=HarpAnalogInput, 
-            path=session_path_behavior / "AnalogInput.harp", 
-            name="analog_input", 
+            device=HarpAnalogInput,
+            path=session_path_behavior / "AnalogInput.harp",
+            name="analog_input",
             autoload=False,
-            remove_suffix=suffix)
-    
-    if 'SoftwareEvents' in os.listdir(session_path_behavior):  
+            remove_suffix=suffix,
+        )
+
+    if "OperationControl" in os.listdir(session_path_behavior):
+        _out_dict["operation_control"] = data_io.OperationControlSource(
+            path=session_path_behavior / "OperationControl", name="operation_control", autoload=True
+        )
+
+    if "UpdaterEvents" in os.listdir(session_path_behavior):
+        _out_dict["updater_events"] = data_io.SoftwareEventSource(
+            path=session_path_behavior / "UpdaterEvents", name="updater_events", autoload=True
+        )
+
+    if "SoftwareEvents" in os.listdir(session_path_behavior):
         _out_dict["software_events"] = data_io.SoftwareEventSource(
-            path=session_path_behavior / "SoftwareEvents",
-            name="software_events",
-            autoload=True)
+            path=session_path_behavior / "SoftwareEvents", name="software_events", autoload=True
+        )
 
     # Load config old version
-    if 'config.json' in os.listdir(session_path_config):
-        with open(str(session_path_config)+'\config.json', 'r') as json_file:
+    if "config.json" in os.listdir(session_path_config):
+        with open(str(session_path_config) + "\config.json", "r") as json_file:
             config = json.load(json_file)
-            
-    elif 'Config' in os.listdir(session_path_config):
-        _out_dict["config"] = data_io.ConfigSource(
-            path=session_path_config / "Config",
-            name="config",
-            autoload=True)
-    
-    if 'OperationControl' in os.listdir(session_path_behavior):
-        _out_dict["operation_control"] = data_io.OperationControlSource(
-            path=session_path_behavior / "OperationControl",
-            name="operation_control",
-            autoload=True)
-    
-    if 'UpdaterEvents' in os.listdir(session_path_behavior):
-        _out_dict["updater_events"] = data_io.SoftwareEventSource(
-            path=session_path_behavior / "UpdaterEvents",
-            name="updater_events",
-            autoload=True)
-    
-    if 'Treadmill.harp' in os.listdir(session_path_behavior):
-        _out_dict["harp_treadmill"] = data_io.HarpSource(
-            device=HarpTreadmill, 
-            path=session_path_behavior / "Treadmill.harp", 
-            name="treadmill", 
-            autoload=False)
-    
+
+    elif "Config" in os.listdir(session_path_config):
+        _out_dict["config"] = data_io.ConfigSource(path=session_path_config / "Config", name="config", autoload=True)
+
     return _out_dict
 
 
@@ -745,53 +665,43 @@ def odor_data_harp_olfactometer(data):
     data["harp_olfactometer"].streams.EndValveState.load_from_file()
 
     schema_properties = TaskSchemaProperties(data)
-    
+
     # Selecting which odor valve is open before the end valves are opened
     OdorValveState = pd.DataFrame()
-    OdorValveState["time"] = data[
-        "harp_olfactometer"
-    ].streams.OdorValveState.data.index.values
+    OdorValveState["time"] = data["harp_olfactometer"].streams.OdorValveState.data.index.values
     data["harp_olfactometer"].streams.OdorValveState.data["Valve0"] = np.where(
         data["harp_olfactometer"].streams.OdorValveState.data["Valve0"] == True,
-        '0',
+        "0",
         False,
     )
     data["harp_olfactometer"].streams.OdorValveState.data["Valve1"] = np.where(
         data["harp_olfactometer"].streams.OdorValveState.data["Valve1"] == True,
-        '1',
+        "1",
         False,
     )
     data["harp_olfactometer"].streams.OdorValveState.data["Valve2"] = np.where(
         data["harp_olfactometer"].streams.OdorValveState.data["Valve2"] == True,
-        '2',
+        "2",
         False,
     )
-    
+
     # Create a new dataframe to store the results
     OdorValveState = pd.DataFrame(columns=["time", "condition"])
 
     # Loop through each row and find the values that are not False
-    for index, row in (
-        data["harp_olfactometer"]
-        .streams.OdorValveState.data[["Valve0", "Valve1", "Valve2"]]
-        .iterrows()
-    ):
+    for index, row in data["harp_olfactometer"].streams.OdorValveState.data[["Valve0", "Valve1", "Valve2"]].iterrows():
         non_false_values = row[row != "False"].tolist()
         if non_false_values:  # Check if there are any non-False values
             OdorValveState = pd.concat(
                 [
                     OdorValveState,
-                    pd.DataFrame(
-                        [[index, non_false_values[0]]], columns=["time", "condition"]
-                    ),
+                    pd.DataFrame([[index, non_false_values[0]]], columns=["time", "condition"]),
                 ]
             )
 
     EndValveState = pd.DataFrame()
-    EndValve = data[
-        "harp_olfactometer"
-    ].streams.EndValveState.data
-    EndValve = EndValve[EndValve['MessageType'] == 'WRITE']
+    EndValve = data["harp_olfactometer"].streams.EndValveState.data
+    EndValve = EndValve[EndValve["MessageType"] == "WRITE"]
     EndValveState["time"] = EndValve.index.values
     EndValveState["condition"] = np.where(
         EndValve["EndValve0"] == True,
@@ -799,9 +709,7 @@ def odor_data_harp_olfactometer(data):
         "EndValveOff",
     )
 
-    odor_updates = pd.concat(
-        [EndValveState[["time", "condition"]], OdorValveState[["time", "condition"]]]
-    )
+    odor_updates = pd.concat([EndValveState[["time", "condition"]], OdorValveState[["time", "condition"]]])
     odor_updates = odor_updates.sort_values(by="time")
     odor_updates = odor_updates[odor_updates["condition"] != False]
 
@@ -822,7 +730,7 @@ def odor_data_harp_olfactometer(data):
         elif row["condition"] == "EndValveOff" and opened:
             offset = row["time"]
             opened = False
-            
+
         if opened == False:
             new_row = {
                 "odor_onset": onset,
@@ -831,7 +739,7 @@ def odor_data_harp_olfactometer(data):
             }
             odor_triggers.loc[len(odor_triggers)] = new_row
             condition = row["condition"]
-        
+
     if row["condition"] == "EndValveOn":
         new_row = {"odor_onset": onset, "odor_offset": np.nan, "patch_type": condition}
         odor_triggers.loc[len(odor_triggers)] = new_row
@@ -844,25 +752,20 @@ def odor_data_harp_olfactometer(data):
     data["config"].streams[schema_properties.tasklogic].load_from_file()
 
     for patches in schema_properties.patches:
-        if (
-            patches[schema_properties.odor_specifications][schema_properties.odor_index]
-            == 0
-        ):
+        if patches[schema_properties.odor_specifications][schema_properties.odor_index] == 0:
             odor0 = patches["label"]
-        elif (
-            patches[schema_properties.odor_specifications][schema_properties.odor_index]
-            == 1
-        ):
+        elif patches[schema_properties.odor_specifications][schema_properties.odor_index] == 1:
             odor1 = patches["label"]
         else:
             odor2 = patches["label"]
-    
+
     odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "0", odor0, odor_triggers["patch_type"])
     odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "1", odor1, odor_triggers["patch_type"])
     odor_triggers["patch_type"] = np.where(odor_triggers["patch_type"] == "2", odor2, odor_triggers["patch_type"])
 
     # return reward_sites  ## ------------------------------------------------------------------------- ##
     return odor_triggers
+
 
 def parse_data_old(data, path):
     """
@@ -881,9 +784,7 @@ def parse_data_old(data, path):
         encoder_data = data["harp_behavior"].streams.AnalogData.data
     except:
         encoder_data = pd.DataFrame()
-        encoder_data["Encoder"] = read_harp_bin(
-            path + "\Behavior\Register__44" + ".bin"
-        )[1]
+        encoder_data["Encoder"] = read_harp_bin(path + "\Behavior\Register__44" + ".bin")[1]
 
     try:
         # Open and read the JSON file
@@ -921,9 +822,7 @@ def parse_data_old(data, path):
     # Concatenate the normalized DataFrame with the original DataFrame
     active_site = pd.concat([active_site, df_normalized], axis=1)
 
-    active_site["label"] = np.where(
-        active_site["label"] == "Reward", "RewardSite", active_site["label"]
-    )
+    active_site["label"] = np.where(active_site["label"] == "Reward", "RewardSite", active_site["label"])
     active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
     # Rename columns
 
@@ -941,19 +840,13 @@ def parse_data_old(data, path):
     except:
         patches = active_site.loc[active_site["label"] == "InterPatch"]
         patches.rename(columns={"label": "name"}, inplace=True)
-        patches["name"] = np.where(
-            patches["name"] == "InterPatch", "ActivePatch", patches["name"]
-        )
+        patches["name"] = np.where(patches["name"] == "InterPatch", "ActivePatch", patches["name"])
 
     try:
         # Old way of obtaining the reward amount
-        reward_available = event[1]["data"]["patchRewardFunction"][
-            "initialRewardAmount"
-        ]
+        reward_available = event[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
     except:
-        reward_available = config["environmentStatistics"]["patches"][0][
-            "patchRewardFunction"
-        ]["initialRewardAmount"]
+        reward_available = config["environmentStatistics"]["patches"][0]["patchRewardFunction"]["initialRewardAmount"]
 
     reward_updates = pd.concat([patches, reward])
     reward_updates.sort_index(inplace=True)
@@ -965,29 +858,21 @@ def parse_data_old(data, path):
         elif event[1]["name"] == "ActivePatch":  # reset reward
             try:
                 # Old way of obtaining the reward amount
-                reward_available = event[1]["data"]["patchRewardFunction"][
+                reward_available = event[1]["data"]["patchRewardFunction"]["initialRewardAmount"]
+            except:
+                reward_available = config["environmentStatistics"]["patches"][0]["patchRewardFunction"][
                     "initialRewardAmount"
                 ]
-            except:
-                reward_available = config["environmentStatistics"]["patches"][0][
-                    "patchRewardFunction"
-                ]["initialRewardAmount"]
         else:
             raise ValueError("Unknown event type")
         reward_updates.at[event[0], "current_reward"] = reward_available
 
     for site in reward_sites.itertuples():
-        arg_min, val_min = processing.find_closest(
-            site.Index, reward_updates.index.values, mode="below_zero"
-        )
+        arg_min, val_min = processing.find_closest(site.Index, reward_updates.index.values, mode="below_zero")
         try:
-            reward_sites.loc[site.Index, "reward_available"] = reward_updates[
-                "current_reward"
-            ].iloc[arg_min]
+            reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
         except:
-            reward_sites.loc[site.Index, "reward_available"] = reward_updates[
-                "current_reward"
-            ].iloc[arg_min]
+            reward_sites.loc[site.Index, "reward_available"] = reward_updates["current_reward"].iloc[arg_min]
 
     # Find responses to Reward site
     data["software_events"].streams.ChoiceFeedback.load_from_file()
@@ -1003,9 +888,7 @@ def parse_data_old(data, path):
 
     visit_number = 0
     for idx, event in enumerate(reward_sites.iterrows()):
-        arg_min, val_min = processing.find_closest(
-            event[0], patches.index.values, mode="below_zero"
-        )
+        arg_min, val_min = processing.find_closest(event[0], patches.index.values, mode="below_zero")
         if not (np.isnan(arg_min)):
             reward_sites.loc[event[0], "active_patch"] = arg_min
         if current_patch_idx != arg_min:
@@ -1017,27 +900,20 @@ def parse_data_old(data, path):
 
         if idx < len(reward_sites) - 1:
             choice = choiceFeedback.loc[
-                (choiceFeedback.index >= reward_sites.index[idx])
-                & (choiceFeedback.index < reward_sites.index[idx + 1])
+                (choiceFeedback.index >= reward_sites.index[idx]) & (choiceFeedback.index < reward_sites.index[idx + 1])
             ]
             reward_in_site = reward.loc[
-                (reward.index >= reward_sites.index[idx])
-                & (reward.index < reward_sites.index[idx + 1])
+                (reward.index >= reward_sites.index[idx]) & (reward.index < reward_sites.index[idx + 1])
             ]
         else:
-            choice = choiceFeedback.loc[
-                (choiceFeedback.index >= reward_sites.index[idx])
-            ]
+            choice = choiceFeedback.loc[(choiceFeedback.index >= reward_sites.index[idx])]
             reward_in_site = reward.loc[(reward.index >= reward_sites.index[idx])]
         reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
         reward_sites.loc[event[0], "reward_delivered"] = (
             reward_in_site.iloc[0]["data"] if len(reward_in_site) > 0 else 0
         )
         reward_sites.loc[event[0], "past_no_reward_count"] = past_no_reward_counter
-        if (
-            reward_sites.loc[event[0], "reward_delivered"] == 0
-            and reward_sites.loc[event[0], "has_choice"] == 1
-        ):
+        if reward_sites.loc[event[0], "reward_delivered"] == 0 and reward_sites.loc[event[0], "has_choice"] == 1:
             past_no_reward_counter += 1
         else:
             past_no_reward_counter = 0
@@ -1060,9 +936,7 @@ def parse_data_old(data, path):
         df_patch = pd.DataFrame(columns=["active_patch", "odor_label", "amount"])
         df_patch["active_patch"] = np.arange(len(patches))
         df_patch["odor_label"] = config["environmentStatistics"]["patches"][0]["label"]
-        df_patch["amount"] = config["environmentStatistics"]["patches"][0][
-            "rewardSpecifications"
-        ]["amount"]
+        df_patch["amount"] = config["environmentStatistics"]["patches"][0]["rewardSpecifications"]["amount"]
 
     reward_sites = pd.merge(
         reward_sites.reset_index(),
@@ -1084,15 +958,11 @@ def parse_data_old(data, path):
     # Iterate through the actual index of df1
     for value in water.index:
         # Check if the value is between 'Start' and 'End' in df2
-        matching_row = reward_sites[
-            (reward_sites.index <= value) & (reward_sites["next_index"].values >= value)
-        ]
+        matching_row = reward_sites[(reward_sites.index <= value) & (reward_sites["next_index"].values >= value)]
 
         # If a matching row is found, update the corresponding row in water with the index value
         if not matching_row.empty:
-            matching_index = matching_row.index[
-                0
-            ]  # Assuming there's at most one matching row
+            matching_index = matching_row.index[0]  # Assuming there's at most one matching row
             reward_sites.at[matching_index, "water_onset"] = value
 
     # ---------------------------------------------------- #
@@ -1116,16 +986,12 @@ def parse_data_old(data, path):
         None,
     )
 
-    odor_df = pd.concat(
-        [odor_0[["Time", "odor_onset"]], odor_1[["Time", "odor_onset"]]]
-    )
+    odor_df = pd.concat([odor_0[["Time", "odor_onset"]], odor_1[["Time", "odor_onset"]]])
     odor_df.sort_index(inplace=True)
     odor_df.dropna(inplace=True)
 
     odor_df["time_diff"] = odor_df["Time"].diff()
-    odor_df = odor_df.drop(
-        index=odor_df.loc[(odor_df["time_diff"] < 1) & (odor_df.index > 0)].index
-    )
+    odor_df = odor_df.drop(index=odor_df.loc[(odor_df["time_diff"] < 1) & (odor_df.index > 0)].index)
 
     try:
         reward_sites["odor_onset"] = odor_df["Time"].values
@@ -1138,15 +1004,11 @@ def parse_data_old(data, path):
     # Iterate through the actual index of df1
     for value in choiceFeedback.index:
         # Check if the value is between 'Start' and 'End' in df2
-        matching_row = reward_sites[
-            (reward_sites.index <= value) & (reward_sites["next_index"].values >= value)
-        ]
+        matching_row = reward_sites[(reward_sites.index <= value) & (reward_sites["next_index"].values >= value)]
 
         # If a matching row is found, update the corresponding row in water with the index value
         if not matching_row.empty:
-            matching_index = matching_row.index[
-                0
-            ]  # Assuming there's at most one matching row
+            matching_index = matching_row.index[0]  # Assuming there's at most one matching row
             reward_sites.at[matching_index, "stop_time"] = value
 
     reward_sites.drop(columns=["next_index"], inplace=True)
@@ -1154,12 +1016,8 @@ def parse_data_old(data, path):
 
     # Add colum for site number
     reward_sites.loc[:, "odor_sites"] = np.arange(len(reward_sites))
-    reward_sites.loc[:, "depleted"] = np.where(
-        reward_sites["reward_available"] == 0, 1, 0
-    )
-    reward_sites.loc[:, "collected"] = np.where(
-        (reward_sites["reward_delivered"] != 0), 1, 0
-    )
+    reward_sites.loc[:, "depleted"] = np.where(reward_sites["reward_available"] == 0, 1, 0)
+    reward_sites.loc[:, "collected"] = np.where((reward_sites["reward_delivered"] != 0), 1, 0)
 
     # reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
     # reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
@@ -1173,34 +1031,27 @@ def parse_data_old(data, path):
     # reward_sites['same_patch'] = np.where((reward_sites['next_patch'] != reward_sites['active_patch'])&(reward_sites['odor_label'] == reward_sites['next_odor'] ), 1, 0)
     # reward_sites.drop(columns=['next_patch', 'next_odor'], inplace=True)
 
-    encoder_data = processing.fir_filter(encoder_data, 'velocity', cutoff_hz=5)
+    encoder_data = processing.fir_filter(encoder_data, "velocity", cutoff_hz=5)
 
     if reward_sites.reward_available.max() >= 100:
         reward_sites["reward_available"] = 100
 
     return reward_sites, active_site, encoder_data, config
 
-
 ## ------------------------------------------------------------------------- ##
-def parse_dataframe(data: pd.DataFrame):
+def parse_dataframe(data: dict) -> pd.DataFrame:
     """
     Parse the data from the session and return the reward sites, active sites and encoder data
 
     Inputs:
-    data: pd.DataFrame
+    data: dict
         Data from the session
 
     Returns:
-    reward_sites: pd.DataFrame
-        Dataframe with the reward sites
-    active_site: pd.DataFrame
-        Dataframe with the active sites (Reward, interpatch and intersite instantiations)
-    config: pd.DataFrame
-        Dataframe with the configuration data
+    all_epochs: pd.DataFrame
+        DataFrame containing the  active sites
 
     """
-
-    # Get the first odor onset per reward site
     data["software_events"].streams.ActiveSite.load_from_file()
     active_site_temp = data["software_events"].streams.ActiveSite.data
 
@@ -1208,41 +1059,63 @@ def parse_dataframe(data: pd.DataFrame):
     active_site = pd.json_normalize(active_site_temp["data"])
     active_site.index = active_site_temp.index
 
+    # Add the postpatch label
+    active_site["previous_epoch"] = active_site["label"].shift(-1)
     active_site["label"] = np.where(
-        active_site["label"] == "Reward", "RewardSite", active_site["label"]
+        active_site["label"] == active_site["previous_epoch"], "PostPatch", active_site["label"]
     )
-    
-    if "treadmill_specification.friction.distribution_parameters.value" in active_site.columns:
-        active_site.rename(columns={"startPosition": "start_position", 
-                                    "treadmill_specification.friction.distribution_parameters.value" : 'friction'}, inplace=True)
+    active_site.drop(columns=["previous_epoch"], inplace=True)
 
+    active_site["label"].replace("Reward", "RewardSite", inplace=True)
+
+    if "treadmill_specification.friction.distribution_parameters.value" in active_site.columns:
+        active_site.rename(
+            columns={
+                "startPosition": "start_position",
+                "treadmill_specification.friction.distribution_parameters.value": "friction",
+            },
+            inplace=True,
+        )
         # Crop and rename columns
         active_site = active_site[["label", "start_position", "length", "friction"]]
+
     else:
         active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
         active_site = active_site[["label", "start_position", "length"]]
-        
-    # Add the postpatch label
-    active_site['previous_epoch'] = active_site['label'].shift(-1)
-    active_site['label'] = np.where(active_site['label'] == active_site['previous_epoch'], 'PostPatch', active_site['label'])
 
-    reward_sites = active_site[active_site["label"] == "RewardSite"]
-    if reward_sites.empty:
-        print('No reward sites found')
-        return reward_sites, active_site, data["config"]
-        
+    # Add active_patch column
+    group = (active_site["label"] == "InterPatch").cumsum()
+    active_site["active_patch"] = group - 1
+
     # Patch initialization
     data["software_events"].streams.ActivePatch.load_from_file()
     patches = data["software_events"].streams.ActivePatch.data
+    df_patch = pd.json_normalize(patches["data"])
+    df_patch.index = patches.index
 
-    # Find responses to Reward site
+    df_patch["active_patch"] = np.arange(len(df_patch))
+    df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label"}, inplace=True)
+    df_patch = df_patch[["patch_label", "active_patch", "odor_label"]]
+
+    if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
+        print("Calibration found")
+    else:
+        df_patch = df_patch.drop(columns=["odor_label"])
+        df_patch.rename(columns={"patch_label": "odor_label"}, inplace=True)
+
+    all_epochs = pd.merge(active_site, df_patch, on="active_patch", how="left")
+    all_epochs.index = active_site.index
+
+    # Count 'RewardSite' occurrences within each group
+    all_epochs["visit_number"] = all_epochs[all_epochs["label"] == "RewardSite"].groupby(group).cumcount()
+    all_epochs["END"] = all_epochs.index.to_series().shift(-1)
+    all_epochs.index.name = "START"
+
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
-    
+
     # Recover water delivery
-    data["harp_behavior"].streams.OutputSet.load_from_file()
-    data["harp_behavior"].streams.OutputClear.load_from_file()
-    water = data["harp_behavior"].streams.OutputSet.data[["SupplyPort0"]]
+    water = ContinuousData(data, load_continuous=False).water_valve_loading()[0]
 
     if "WaitRewardOutcome" in data["software_events"].streams:
         # Successfull waits
@@ -1251,101 +1124,67 @@ def parse_dataframe(data: pd.DataFrame):
             index=data["software_events"].streams.WaitRewardOutcome.data.index,
             columns=["data"],
         )
-        
-        new_data = pd.json_normalize(
-            data["software_events"].streams.WaitRewardOutcome.data["data"]
-        )["IsSuccessfulWait"]
+
+        new_data = pd.json_normalize(data["software_events"].streams.WaitRewardOutcome.data["data"])["IsSuccessfulWait"]
         succesfull_wait["data"] = new_data.values
         succesfull_wait = succesfull_wait[succesfull_wait["data"] == True]
     else:
-        succesfull_wait = pd.Series([]
-                                    )
-    reward_sites.loc[:, "active_patch"] = -1
-    reward_sites.loc[:, "visit_number"] = -1
-    reward_sites.loc[:, "has_choice"] = False
-    reward_sites.loc[:, "reward_delivered"] = 0
-    reward_sites.loc[:, "stop_cue"] = np.nan
-    reward_sites.loc[:, "succesful_wait"] = np.nan
-    reward_sites.loc[:, "water_onset"] = np.nan
-    current_patch_idx = -1
+        succesfull_wait = pd.Series([])
 
-    visit_number = 0
-    for idx, event in enumerate(reward_sites.iterrows()):
-        arg_min, val_min = processing.find_closest(
-            event[0], patches.index.values, mode="below_zero"
-        )
-        if not (np.isnan(arg_min)):
-            reward_sites.loc[event[0], "active_patch"] = arg_min
-        if current_patch_idx != arg_min:
-            current_patch_idx = arg_min
-            visit_number = 0
-        else:
-            visit_number += 1
-        reward_sites.loc[event[0], "visit_number"] = visit_number
+    # Create an empty list to hold the results
+    stop_cues = []
+    water_onsets = []
+    successful_waits = []
 
-        if idx < len(reward_sites) - 1:
-            choice = choiceFeedback.loc[
-                (choiceFeedback.index >= reward_sites.index[idx])
-                & (choiceFeedback.index < reward_sites.index[idx + 1])
-            ]
-            reward_in_site = water.loc[
-                (water.index >= reward_sites.index[idx])
-                & (water.index < reward_sites.index[idx + 1])
-            ]
-            waits = succesfull_wait.loc[
-                (succesfull_wait.index >= reward_sites.index[idx])
-                & (succesfull_wait.index < reward_sites.index[idx + 1])
-            ]
+    reward_sites = all_epochs[all_epochs["label"] == "RewardSite"]
 
-        else:  # Last odorsite of the session
-            choice = choiceFeedback.loc[
-                (choiceFeedback.index >= reward_sites.index[idx])
-            ]
-            reward_in_site = water.loc[(water.index >= reward_sites.index[idx])]
-            waits = succesfull_wait.loc[
-                (succesfull_wait.index >= reward_sites.index[idx])
-            ]
+    # Iterate through `reward_sites` and find the relevant slices in one go
+    reward_sites_index = reward_sites.index
 
-        reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
-        reward_sites.loc[event[0], "stop_cue"] = (
-            choice.index[0] if len(choice) > 0 else np.nan
-        )
-        reward_sites.loc[event[0], "reward_delivered"] = (
-            1 if len(reward_in_site) > 0 else 0
-        )
-        reward_sites.loc[event[0], "water_onset"] = (
-            reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan
-        )
-        reward_sites.loc[event[0], "succesful_wait"] = (
-            waits.index[0] if len(waits) > 0 else np.nan
-        )
+    # Loop over the reward_sites
+    for idx in range(len(reward_sites_index) - 1):
+        # Define the current and next reward site index
+        current_idx = reward_sites_index[idx]
+        next_idx = reward_sites_index[idx + 1]
 
-    # This is to recover the odor label,  there are easier ways but this one works with all the datasets so far
-    df_patch = pd.json_normalize(patches["data"])
-    df_patch.reset_index(inplace=True)
-    df_patch.rename(
-        columns={"index": "active_patch", "label": "odor_label"}, inplace=True
-    )
-    reward_sites = pd.merge(
-        reward_sites.reset_index(),
-        df_patch[["odor_label", "active_patch"]],
-        on="active_patch",
-    )
-    reward_sites.index = reward_sites["Seconds"]
-    reward_sites.drop(columns=["Seconds"], inplace=True)
+        # Find slices based on the current and next indices
+        choice = choiceFeedback[(choiceFeedback.index >= current_idx) & (choiceFeedback.index < next_idx)]
+        reward_in_site = water[(water.index >= current_idx) & (water.index < next_idx)]
+        waits = succesfull_wait[(succesfull_wait.index >= current_idx) & (succesfull_wait.index < next_idx)]
 
-    # ---------------- Add odor valve trigger times ---------------- #
-    # try:
-    # reward_sites = odor_data_harp_olfactometer(data, reward_sites)
-    # except:
-    #     print("No olfactometer data - Old system?")
-    #     pass
-    # ---------------------------------------------------- #
-    try:
-        reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
-    except:
-        pass
-    return reward_sites, active_site, data["config"]
+        # Store the first relevant index or NaN
+        stop_cues.append(choice.index[0] if len(choice) > 0 else np.nan)
+        water_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
+        successful_waits.append(waits.index[0] if len(waits) > 0 else np.nan)
+
+    # For the last site, handle the edge case
+    last_idx = reward_sites_index[-1]
+    choice = choiceFeedback[choiceFeedback.index >= last_idx]
+    reward_in_site = water[water.index >= last_idx]
+    waits = succesfull_wait[succesfull_wait.index >= last_idx]
+
+    stop_cues.append(choice.index[0] if len(choice) > 0 else np.nan)
+    water_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
+    successful_waits.append(waits.index[0] if len(waits) > 0 else np.nan)
+
+    # Assign the results to the DataFrame
+    reward_sites["stop_cue"] = stop_cues
+    reward_sites["water_onset"] = water_onsets
+    reward_sites["succesful_wait"] = successful_waits
+
+    # Add the new columns for choice and reward delivered
+    reward_sites["has_choice"] = reward_sites["stop_cue"].notnull().astype(int)
+    reward_sites["reward_delivered"] = reward_sites["water_onset"].notnull().astype(int)
+
+    reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+
+    # Concatenate the results to all_epochs
+    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'RewardSite'], reward_sites], axis=0)
+
+    # Sort the index
+    all_epochs.sort_index(inplace=True)
+
+    return all_epochs
 
 
 ## ------------------------------------------------------------------------- ##
