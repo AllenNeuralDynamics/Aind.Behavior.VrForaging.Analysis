@@ -5,7 +5,7 @@ Example of Task creation
 import json
 from typing import Literal
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field
 
 import aind_behavior_vr_foraging.task_logic as vr_task_logic
 import distribution_helpers as dist

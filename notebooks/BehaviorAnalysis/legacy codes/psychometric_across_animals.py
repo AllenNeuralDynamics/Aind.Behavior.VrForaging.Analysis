@@ -3,13 +3,9 @@ import sys
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Union, Any, Callable
+from typing import Dict, Optional
 
 ## Plotting
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.patches import Rectangle
-import seaborn as sns
 
 ## Harp/Bonsai
 sys.path.append('../../src/')
@@ -119,7 +115,6 @@ def fit_psychometric(stim: np.array,
                      par0: np.array = np.array([1., 1.])):
     import numpy as np
     from scipy.optimize import curve_fit
-    import scipy as sy
 
     if np.shape(stim) != np.shape(p_choice):
         raise ValueError("stim and p_choice must have the same shape")

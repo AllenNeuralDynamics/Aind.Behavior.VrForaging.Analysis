@@ -42,9 +42,9 @@ def assign_odor_triggers(reward_sites, odor_triggers):
     return reward_sites
     
 class AddExtraColumns:
-    def __init__(self, reward_sites, active_site, run_on_init=True):
-        self.reward_sites = reward_sites
-        self.active_site = active_site
+    def __init__(self, all_epochs, run_on_init=True):
+        self.reward_sites = all_epochs.loc[all_epochs.label == "RewardSite"]
+        self.all_epochs = all_epochs
         self.run_on_init = run_on_init
 
         if self.run_on_init:
@@ -137,13 +137,7 @@ class AddExtraColumns:
         return self.reward_sites
 
     def add_time_previous_intersite_interpatch(self):
-        all_epochs = pd.concat(
-            [
-                self.reward_sites,
-                self.active_site.loc[self.active_site.label != "RewardSite"],
-            ]
-        )
-        all_epochs.sort_index(inplace=True)
+        all_epochs = self.all_epochs
         all_epochs.loc[:, "total_sites"] = 0
 
         active_patch = -1

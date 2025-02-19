@@ -3,7 +3,7 @@ Example of Trainer creation
 """
 
 from collections import defaultdict
-from typing import Callable, Dict
+from typing import Dict
 
 import curriculum_v1 as cur_v1
 

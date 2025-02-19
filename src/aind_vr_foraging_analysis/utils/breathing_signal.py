@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.fft import fft, ifft
 from scipy.signal import butter, filtfilt, lfilter, iirnotch, find_peaks, savgol_filter
 
 

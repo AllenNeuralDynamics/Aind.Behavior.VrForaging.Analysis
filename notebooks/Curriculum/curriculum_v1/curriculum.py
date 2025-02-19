@@ -8,8 +8,6 @@ from typing import Literal
 from pydantic import Field
 
 from aind_behavior_curriculum import (
-    GRADUATED,
-    INIT_STAGE,
     Curriculum,
     Metrics,
     Policy,
@@ -22,7 +20,6 @@ from aind_behavior_curriculum import (
     get_task_types,
 )
 
-import aind_behavior_vr_foraging.task_logic as task_logic
 import task as task
 # --- TASKS ---
 class TaskAParameters(TaskParameters):

@@ -1,23 +1,15 @@
-from matplotlib import patches as mpatches
 import sys
 sys.path.append('../../../src/')
 
-import os
 
-from aind_vr_foraging_analysis.utils import parse, processing, plotting_utils as plotting, AddExtraColumns
 
 # Plotting libraries
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 import seaborn as sns
 import pandas as pd
 import numpy as np
-import datetime
-from scipy.optimize import curve_fit
 import math 
-from os import PathLike
-from pathlib import Path
-from scipy.stats import pearsonr, ttest_rel
+from scipy.stats import ttest_rel
 
 sns.set_context('talk')
 
@@ -26,7 +18,7 @@ pd.options.mode.chained_assignment = None  # Ignore SettingWithCopyWarning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter("ignore", UserWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
-from scipy.stats import ttest_ind, ttest_rel
+from scipy.stats import ttest_ind
 
 pdf_path = r'Z:\scratch\vr-foraging\sessions'
 base_path = r'Z:\scratch\vr-foraging\data'
@@ -219,7 +211,7 @@ def summary_main_variables(general_df,
     if save:
         fig.savefig(save, format='pdf')
     else:
-        plt.savefig(results_path+f'/summary_mouse.pdf', dpi=300, bbox_inches='tight')
+        plt.savefig(results_path+'/summary_mouse.pdf', dpi=300, bbox_inches='tight')
     plt.show()
 
 def across_sessions_one_plot(summary_df, variable, save=False):

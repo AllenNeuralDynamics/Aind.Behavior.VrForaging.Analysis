@@ -1,6 +1,5 @@
 # %%
 import sys
-from math import e
 
 sys.path.append("../src/")
 
@@ -12,7 +11,7 @@ import pandas as pd
 # Plotting libraries
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
-from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator
+from matplotlib.ticker import FixedLocator, FuncFormatter
 
 
 def format_func(value, tick_number):
@@ -433,11 +432,11 @@ def speed_traces_value(
             ax1[2].set_title(f"Odor {odor_label} ")
 
             if i == 1:
-                ax1[i].text(1.2, 75, f"Stopped", fontsize=12)
-                ax1[i + 2].text(1.2, 75, f"Stopped", fontsize=12)
+                ax1[i].text(1.2, 75, "Stopped", fontsize=12)
+                ax1[i + 2].text(1.2, 75, "Stopped", fontsize=12)
             else:
-                ax1[i].text(1.2, 75, f"Not stopped", fontsize=12)
-                ax1[i + 2].text(1.2, 75, f"Not stopped", fontsize=12)
+                ax1[i].text(1.2, 75, "Not stopped", fontsize=12)
+                ax1[i + 2].text(1.2, 75, "Not stopped", fontsize=12)
 
     sns.despine()
     plt.suptitle(str(mouse) + "_" + str(session))
@@ -510,10 +509,10 @@ def speed_traces_efficient(
         )
 
         if collected_label == 1:
-            ax[0][collected_label].set_title(f" Stopped", color=colors[collected_label])
+            ax[0][collected_label].set_title(" Stopped", color=colors[collected_label])
         else:
             ax[0][collected_label].set_title(
-                f" Not Stopped", color=colors[collected_label]
+                " Not Stopped", color=colors[collected_label]
             )
 
         sns.lineplot(
@@ -548,11 +547,11 @@ def speed_traces_efficient(
 
         if collected_label == 1:
             ax[1][collected_label].set_title(
-                f" Rewarded stop", color=colors[collected_label]
+                " Rewarded stop", color=colors[collected_label]
             )
         else:
             ax[1][collected_label].set_title(
-                f" No reward stop", color=colors[collected_label]
+                " No reward stop", color=colors[collected_label]
             )
 
         sns.lineplot(
@@ -588,11 +587,11 @@ def speed_traces_efficient(
 
         if collected_label == 1:
             ax[2][collected_label].set_title(
-                f" No reward - depleted", color=colors[collected_label]
+                " No reward - depleted", color=colors[collected_label]
             )
         else:
             ax[2][collected_label].set_title(
-                f" No reward - not depleted", color=colors[collected_label]
+                " No reward - not depleted", color=colors[collected_label]
             )
 
         sns.lineplot(
