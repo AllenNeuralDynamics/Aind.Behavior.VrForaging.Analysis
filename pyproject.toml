@@ -19,15 +19,12 @@ dependencies = [
   "pandas",
   "numpy<2.0.0",
   "jupyter",
-  "scipy",
   "dotmap",
   "matplotlib",
-  "scipy",
   "seaborn",
   "scikit-learn",
   "tabulate",
   "statsmodels",
-  "aind-behavior-curriculum",
 ]
 
 [project.optional-dependencies]
