@@ -268,7 +268,6 @@ class RewardFunctions:
 
         self._data = data
         self.reward_sites = reward_sites
-
         self.schema_properties = TaskSchemaProperties(self._data)
 
     def calculate_reward_functions(self):
@@ -1200,7 +1199,9 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     reward_sites["has_choice"] = reward_sites["stop_cue"].notnull().astype(int)
     reward_sites["reward_delivered"] = reward_sites["water_onset"].notnull().astype(int)
 
-    reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+    schema_properties = TaskSchemaProperties(data)
+    if schema_properties.patches[0]['reward_specification'] != None:
+        reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
 
     # Concatenate the results to all_epochs
     all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'RewardSite'], reward_sites], axis=0)
