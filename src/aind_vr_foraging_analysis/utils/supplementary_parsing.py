@@ -49,10 +49,11 @@ class AddExtraColumns:
 
         if self.run_on_init:
             self.add_main_info()
-            self.skipped_sites()
             self.cumulative_consecutive()
             self.add_time_previous_intersite_interpatch()
             self.add_previous_patch_info()
+            # self.add_previous_odor_info()
+            self.skipped_sites()
 
     def cumulative_consecutive(self):
         previous_patch = -1

@@ -24,6 +24,25 @@ _payloadtypes = {
     68: np.dtype(np.float32),
 }
 
+from datetime import datetime
+import pytz
+
+def extract_and_convert_time(filename):
+    seattle_tz = pytz.timezone('America/Los_Angeles')
+
+    # Extract the timestamp part
+    timestamp_part = filename.split("_")[1]
+
+    try:
+        if "Z" in timestamp_part:  # Case: UTC timestamp
+            dt_utc = datetime.strptime(timestamp_part, "%Y-%m-%dT%H%M%SZ")
+            dt_local = dt_utc.replace(tzinfo=pytz.utc).astimezone(seattle_tz)
+        else:  # Case: Already local time
+            dt_local = datetime.strptime(timestamp_part, "%Y%m%dT%H%M%S")
+            dt_local = seattle_tz.localize(dt_local)
+        return dt_local.date()
+    except ValueError:
+        return "Invalid filename format"
 
 class TaskSchemaProperties:
     """This class is used to store the schema properties of the task configuration.
@@ -103,7 +122,6 @@ class ContinuousData:
             self.give_reward, self.pulse_duration = self.water_valve_loading()
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
-            self.torque_data, self.brake_data = self.torque_loading()
             self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def encoder_loading(self, parser: str = "filter"):
@@ -316,35 +334,42 @@ class RewardFunctions:
                     patches[self.schema_properties.reward_specification]["amount"], 500
                 )
                 continue
+            else:
+                function_type = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
+                if (
+                    function_type
+                    == "ConstantFunction"
+                ):
+                    odor_label = patches["label"]
+                    y = np.repeat(
+                        patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["value"],
+                        500,
+                    )
+                elif(
+                    function_type
+                    == 'LookupTableFunction' ):
+                    odor_label = patches["label"]
+                    y = np.array(
+                        patches[self.schema_properties.reward_specification]['reward_function']['amount']['lut_values']
+                    )
+                elif(
+                    function_type
+                    == 'PowerFunction' ):
+                    odor_label = patches["label"]
+                    a = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["a"]
+                    b = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["b"]
+                    c = -patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["c"]
+                    d = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["d"]
 
-            if (
-                patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
-                == "ConstantFunction"
-            ):
-                odor_label = patches["label"]
-                y = np.repeat(
-                    patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["value"],
-                    500,
-                )
-            elif(
-                patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
-                == 'LookupTableFunction' ):
-                odor_label = patches["label"]
-                y = np.array(
-                    patches[self.schema_properties.reward_specification]['reward_function']['amount']['lut_values']
-                )
-            elif(
-                patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
-                == 'PowerFunction' ):
-                odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["a"]
-                b = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["b"]
-                c = -patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["c"]
-                d = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["d"]
-
-                # Generate x values
-                y = a * pow(b, -c * x) + d
-
+                    # Generate x values
+                    y = a * pow(b, -c * x) + d
+                elif(
+                    function_type == 'LinearFunction'):
+                    odor_label = patches["label"]
+                    a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
+                    b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
+                    y = b + a * x
+                    
             dict_odor[odor_label] = y
 
         for index, row in self.reward_sites.iterrows():           
@@ -371,35 +396,43 @@ class RewardFunctions:
                     500,
                 )
                 continue
+            else:
+                function_type = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
+                if (
+                    function_type
+                    == "ConstantFunction"
+                ):
+                    odor_label = patches["label"]
+                    y = np.repeat(
+                        patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["value"],
+                        500,
+                    )
+                elif(
+                    function_type
+                    == 'LookupTableFunction'):
+                    odor_label = patches["label"]
+                    
+                    y = np.array(
+                        patches[self.schema_properties.reward_specification]['reward_function']['probability']['lut_values']
+                    )
+                elif(
+                    function_type
+                    == 'PowerFunction' ):
+                    odor_label = patches["label"]
+                    a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
+                    b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
+                    c = -patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["c"]
+                    d = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["d"]
 
-            if (
-                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
-                == "ConstantFunction"
-            ):
-                odor_label = patches["label"]
-                y = np.repeat(
-                    patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["value"],
-                    500,
-                )
-            elif(
-                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
-                == 'LookupTableFunction' ):
-                odor_label = patches["label"]
-                y = np.array(
-                    patches[self.schema_properties.reward_specification]['reward_function']['probability']['lut_values']
-                )
-            elif(
-                patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
-                == 'PowerFunction' ):
-                odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
-                b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
-                c = -patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["c"]
-                d = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["d"]
-
-                # Generate x values
-                y = a * pow(b, -c * x) + d
-
+                    # Generate x values
+                    y = a * pow(b, -c * x) + d
+                elif(
+                    function_type == 'LinearFunction'):
+                    odor_label = patches["label"]
+                    a = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["a"]
+                    b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
+                    y = b + a * x
+                
             dict_odor[odor_label] = y
 
         #### ----------- Need to add the modification for On Choice, right now specific for OnReward
@@ -421,7 +454,6 @@ class RewardFunctions:
         dict_odor = {}
 
         for patches in self.schema_properties.patches:
-
             # Segment for when the conventions were different. It was always a linear decrease.
             if "reward_function" not in patches[self.schema_properties.reward_specification]:
                 if patches["patchRewardFunction"]["initialRewardAmount"] >= 100:
@@ -433,35 +465,43 @@ class RewardFunctions:
                     y = initial - amount * x
                     dict_odor[odor_label] = y
                 continue
+            else:
+                function_type = patches[self.schema_properties.reward_specification]["reward_function"]["available"][
+                    "function_type"]
+                if (
+                    function_type == "ConstantFunction"
+                ):
+                    odor_label = patches["label"]
+                    y = np.repeat(
+                        patches[self.schema_properties.reward_specification]["reward_function"]['available']["value"],
+                        500,
+                    )
+                elif(
+                    function_type
+                    == 'LookupTableFunction' ):
+                    odor_label = patches["label"]
+                    y = np.array(
+                        patches[self.schema_properties.reward_specification]['reward_function']['available']['lut_values']
+                    )
+                elif(
+                    function_type
+                    == 'PowerFunction'):
+                    odor_label = patches["label"]
+                    a = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["a"]
+                    b = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["b"]
+                    c = -patches[self.schema_properties.reward_specification]["reward_function"]["available"]["c"]
+                    d = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["d"]
 
-            if (
-                patches[self.schema_properties.reward_specification]["reward_function"]["available"]["function_type"]
-                == "ConstantFunction"
-            ):
-                odor_label = patches["label"]
-                y = np.repeat(
-                    patches[self.schema_properties.reward_specification]["reward_function"]['available']["value"],
-                    500,
-                )
-            elif(
-                patches[self.schema_properties.reward_specification]["reward_function"]["available"]["function_type"]
-                == 'LookupTableFunction' ):
-                odor_label = patches["label"]
-                y = np.array(
-                    patches[self.schema_properties.reward_specification]['reward_function']['available']['lut_values']
-                )
-            elif(
-                patches[self.schema_properties.reward_specification]["reward_function"]["available"]["function_type"]
-                == 'PowerFunction' ):
-                odor_label = patches["label"]
-                a = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["a"]
-                b = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["b"]
-                c = -patches[self.schema_properties.reward_specification]["reward_function"]["available"]["c"]
-                d = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["d"]
+                    # Generate x values
+                    y = a * pow(b, -c * x) + d
 
-                # Generate x values
-                y = a * pow(b, -c * x) + d
-
+                elif(
+                    function_type == 'LinearFunction'):
+                    odor_label = patches["label"]
+                    a = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["a"]
+                    b = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["b"]
+                    y = b + a * x
+                    
             dict_odor[odor_label] = y
 
         for index, row in self.reward_sites.iterrows():
@@ -551,6 +591,9 @@ def load_session_data(
     HarpStepperDriver = data_io.reader_from_url(
         r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml"
     )
+    HarpEnvironmentSensor = data_io.reader_from_url(
+        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.environment-sensor/refs/heads/main/device.yml"
+    )
 
     session_path_behavior = session_path
     session_path_config = session_path
@@ -560,8 +603,13 @@ def load_session_data(
     if "behavior" in os.listdir(session_path):
         session_path_behavior = session_path / "behavior"
         suffix = None
+    else:
+        session_path_behavior = session_path
+        
     if "other" in os.listdir(session_path):
         session_path_config = session_path / "other"
+    else:
+        session_path_config = session_path
 
     if "Behavior.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_behavior"] = data_io.HarpSource(
@@ -630,6 +678,11 @@ def load_session_data(
         _out_dict["harp_treadmill"] = data_io.HarpSource(
             device=HarpTreadmill, path=session_path_behavior / "Treadmill.harp", name="treadmill", autoload=False
         )
+        
+    if "EnvironmentSensor.harp" in os.listdir(session_path_behavior):
+        _out_dict["harp_environment_sensor"] = data_io.HarpSource(
+            device=HarpEnvironmentSensor, path=session_path_behavior / "EnvironmentSensor.harp", name="environment_sensor", autoload=False
+        )
 
     if "AnalogInput.harp" in os.listdir(session_path_behavior):
         _out_dict["harp_analog"] = data_io.HarpSource(
@@ -658,12 +711,11 @@ def load_session_data(
     # Load config old version
     if "config.json" in os.listdir(session_path_config):
         with open(str(session_path_config) + "\config.json", "r") as json_file:
-            config = json.load(json_file)
-
+            _out_dict["config"] = json.load(json_file)
     elif "Config" in os.listdir(session_path_config):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_config / "Config", name="config", autoload=True)
-        _out_dict["endsession"] = data_io.ConfigSource(path=session_path_config, name="config", autoload=True).streams['endsession']
-    else:
+        # _out_dict["endsession"] = data_io.ConfigSource(path=session_path_config, name="config", autoload=True).streams['endsession']
+    elif "Logs" in os.listdir(session_path_behavior):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
         _out_dict["endsession"] = _out_dict["config"].streams["endsession"]
 
@@ -1119,22 +1171,31 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     df_patch.index = patches.index
 
     df_patch["active_patch"] = np.arange(len(df_patch))
-    df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label"}, inplace=True)
-    df_patch = df_patch[["patch_label", "active_patch", "odor_label"]]
-
+    if "odor_specification.index" in df_patch.columns:
+        df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label"}, inplace=True)
+        df_patch = df_patch[["patch_label", "active_patch", "odor_label"]]
+    else: 
+        df_patch.rename(columns={"label": "odor_label"}, inplace=True)
+        df_patch = df_patch[["active_patch", "odor_label"]]
+        df_patch["patch_label"] = df_patch["odor_label"]
+        
     all_epochs = pd.merge(active_site, df_patch, on="active_patch", how="left")
     all_epochs.index = active_site.index
     
-    if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
-        print("Calibration found")
-        # Create a mapping dictionary from the nested structure
-        mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
+# ------------
+    if 'calibration' in data["config"].streams.rig_input.data["harp_olfactometer"]:
+        if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
+            # Create a mapping dictionary from the nested structure
+            mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
 
-        # Replace numbers in the dataframe column with the corresponding odorant values
-        all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
-        
+            # Replace numbers in the dataframe column with the corresponding odorant values
+            all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
+            
+        else:
+            all_epochs["odor_label"] = all_epochs['patch_label']   
     else:
         all_epochs["odor_label"] = all_epochs['patch_label']
+# ----------------
 
     # Count 'RewardSite' occurrences within each group
     all_epochs["visit_number"] = all_epochs[all_epochs["label"] == "RewardSite"].groupby(group).cumcount()
@@ -1200,7 +1261,10 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     reward_sites["reward_delivered"] = reward_sites["water_onset"].notnull().astype(int)
 
     schema_properties = TaskSchemaProperties(data)
-    if schema_properties.patches[0]['reward_specification'] != None:
+    if 'reward_specification' in schema_properties.patches[0]:
+        if schema_properties.patches[0]['reward_specification'] != None:
+            reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+    else:
         reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
 
     # Concatenate the results to all_epochs

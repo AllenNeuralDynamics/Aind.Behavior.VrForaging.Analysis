@@ -258,12 +258,6 @@ def segmented_raster_vertical(
                 color=color_dict_label[odor],
                 label=(
                     str(odor)
-                    + "_"
-                    + str(
-                        reward_sites.loc[
-                            reward_sites.odor_label == odor
-                        ].reward_probability.max()
-                    )
                 ),
             )
         )
