@@ -45,9 +45,8 @@ class AddExtraColumns:
     def __init__(self, all_epochs, run_on_init=True):
         self.reward_sites = all_epochs.loc[all_epochs.label == "RewardSite"]
         self.all_epochs = all_epochs
-        self.run_on_init = run_on_init
 
-        if self.run_on_init:
+        if run_on_init:
             self.add_main_info()
             self.cumulative_consecutive()
             self.add_time_previous_intersite_interpatch()
@@ -104,18 +103,15 @@ class AddExtraColumns:
                 skipped_count = 0
             self.reward_sites.loc[index, "skipped_count"] = skipped_count
 
-        return self.reward_sites
-
     def add_main_info(self):
-
         # Add column for site number
-        self.reward_sites.loc[:, "odor_sites"] = np.arange(len(self.reward_sites))
+        self.reward_sites["odor_sites"] = np.arange(len(self.reward_sites))
 
         self.reward_sites["collected"] = (
             self.reward_sites["reward_delivered"] * self.reward_sites["reward_amount"]
         )
 
-        self.reward_sites.loc[:, "depleted"] = np.where(
+        self.reward_sites["depleted"] = np.where(
             self.reward_sites["reward_available"] == 0, 1, 0
         )
 
@@ -134,8 +130,6 @@ class AddExtraColumns:
         self.reward_sites["last_site"] = np.where(
             self.reward_sites["last_site"] == 0, 1, 0
         )
-
-        return self.reward_sites
 
     def add_time_previous_intersite_interpatch(self):
         all_epochs = self.all_epochs
@@ -166,12 +160,7 @@ class AddExtraColumns:
             all_epochs["total_sites"] == -1, 0, all_epochs["total_sites"]
         )
 
-        self.total_epochs = all_epochs.copy()
-        self.reward_sites = self.total_epochs.loc[
-            self.total_epochs.label == "RewardSite"
-        ]
-
-        return self.total_epochs
+        self.all_epochs = all_epochs.copy()
     
     def add_previous_odor_info(self):
         # -------------------------------- Add previous and next site information ---------------------
@@ -183,7 +172,6 @@ class AddExtraColumns:
         index.insert(0, 0)
         self.reward_sites["previous_odor"] = index
 
-        return self.reward_sites
 
     def add_previous_patch_info(self):
         self.reward_sites["next_patch"] = self.reward_sites["active_patch"].shift(1)
@@ -196,4 +184,3 @@ class AddExtraColumns:
         )
         self.reward_sites.drop(columns=["next_patch", "next_odor"], inplace=True)
 
-        return self.reward_sites
