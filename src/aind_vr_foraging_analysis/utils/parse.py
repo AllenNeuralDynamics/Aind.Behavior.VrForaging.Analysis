@@ -714,7 +714,7 @@ def load_session_data(
             _out_dict["config"] = json.load(json_file)
     elif "Config" in os.listdir(session_path_config):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_config / "Config", name="config", autoload=True)
-        # _out_dict["endsession"] = data_io.ConfigSource(path=session_path_config, name="config", autoload=True).streams['endsession']
+        _out_dict["endsession"] = data_io.ConfigSource(path=session_path_config, name="config", autoload=True).streams['endsession']
     elif "Logs" in os.listdir(session_path_behavior):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
         _out_dict["endsession"] = _out_dict["config"].streams["endsession"]
