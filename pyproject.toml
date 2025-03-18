@@ -17,7 +17,7 @@ dependencies = [
   "harp-python@git+https://github.com/harp-tech/harp-python",
   "aind-behavior-vr-foraging@git+https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging",
   "pandas",
-  "numpy<2.0.0",
+  "numpy",
   "jupyter",
   "dotmap",
   "matplotlib",
@@ -37,7 +37,6 @@ linters = [
     'interrogate',
     'isort'
 ]
-
 
 [tool.setuptools.packages.find]
 where = ["src"]
