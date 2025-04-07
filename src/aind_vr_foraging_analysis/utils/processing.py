@@ -107,16 +107,16 @@ def choose_cut(reward_sites: pd.DataFrame, number_skipped: int = 20):
     """
 
     cumulative = 0
-    for row, i in enumerate(reward_sites.has_choice):
+    for row, i in enumerate(reward_sites.is_choice):
         if int(i) == 0:
             cumulative += 1
         else:
             cumulative = 0
 
         if cumulative == number_skipped:
-            return reward_sites.iloc[row].active_patch
+            return reward_sites.iloc[row].patch_number
 
-    return max(reward_sites.active_patch)
+    return max(reward_sites.patch_number)
 
 
 def find_file(start_dir: str, filename_part: str):

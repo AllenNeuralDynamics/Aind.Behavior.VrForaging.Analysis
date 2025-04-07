@@ -88,7 +88,7 @@ def speed_traces_epochs(
     for j, dataframe in enumerate([inter_patch, inter_site, reward_sites]):
         for start_reward, row in dataframe.iterrows():
             trial_average = pd.DataFrame()
-            if dataframe["label"].values[0] == "RewardSite":
+            if dataframe["label"].values[0] == "OdorSite":
                 trial = encoder_data.loc[
                     start_reward + -0.9 : start_reward + 2, "filtered_velocity"
                 ]
@@ -198,14 +198,14 @@ def segmented_raster_vertical(
     },
 ):
 
-    patch_number = len(reward_sites.active_patch.unique())
+    patch_number = len(reward_sites.patch_number.unique())
     number_odors = len(reward_sites["odor_label"].unique())
 
     # Make second row proportional to the number of odors
     list_odors = []
     for odor in reward_sites.odor_label.unique():
         list_odors.append(
-            reward_sites.loc[reward_sites.odor_label == odor].active_patch.nunique()
+            reward_sites.loc[reward_sites.odor_label == odor].patch_number.nunique()
         )
     grid = (np.array(list_odors) / patch_number) * number_odors
 
@@ -214,9 +214,9 @@ def segmented_raster_vertical(
 
     for index, row in reward_sites.iterrows():
         ax1 = plt.subplot(gs[0, 0:number_odors])
-        if row["reward_delivered"] == 1 and row["has_choice"] == True:
+        if row["is_reward"] == 1 and row["is_choice"] == True:
             color = "steelblue"
-        elif row["reward_delivered"] == 0 and row["has_choice"] == True:
+        elif row["is_reward"] == 0 and row["is_choice"] == True:
             color = "pink"
             if row["reward_available"] == 0:
                 color = "crimson"
@@ -226,23 +226,23 @@ def segmented_raster_vertical(
             else:
                 color = "lightgrey"
 
-        # ax1.barh(int(row['active_patch']), left=row['visit_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
+        # ax1.barh(int(row['patch_number']), left=row['site_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
         ax1.bar(
-            int(row["active_patch"]),
-            bottom=row["visit_number"],
+            int(row["patch_number"]),
+            bottom=row["site_number"],
             height=1,
             width=1,
             color=color,
             edgecolor="darkgrey",
             linewidth=0.5,
         )
-        ax1.set_xlim(-1, max(reward_sites.active_patch) + 1)
+        ax1.set_xlim(-1, max(reward_sites.patch_number) + 1)
         ax1.set_xlabel("Patch number")
         ax1.set_ylabel("Site number")
 
-        # ax1.bar(int(row['active_patch']), bottom = -1, height=0.5, width = 1, color=patch_color, edgecolor='black', linewidth=0.5)
+        # ax1.bar(int(row['patch_number']), bottom = -1, height=0.5, width = 1, color=patch_color, edgecolor='black', linewidth=0.5)
         ax1.scatter(
-            row["active_patch"],
+            row["patch_number"],
             -0.25,
             color=color_dict_label[row["odor_label"]],
             marker="^",
@@ -269,7 +269,7 @@ def segmented_raster_vertical(
     label_6 = mpatches.Patch(color="pink", label="Harvest, no reward, probabilitic")
 
     odors.extend([label_2, label_3, label_6, label_4, label_5])
-    ax1.set_ylim(-1, max(reward_sites.visit_number) + 1)
+    ax1.set_ylim(-1, max(reward_sites.site_number) + 1)
 
     if len(reward_sites["odor_label"].unique()) != 1 and len(reward_sites["odor_label"].unique()) != 2:
         ax2 = plt.subplot(gs[1, 0])
@@ -281,9 +281,9 @@ def segmented_raster_vertical(
             value = 0
             for index, row in selected_sites.iterrows():
                 # Choose the color of the site
-                if row["reward_delivered"] == 1 and row["has_choice"] == True:
+                if row["is_reward"] == 1 and row["is_choice"] == True:
                     color = "steelblue"
-                elif row["reward_delivered"] == 0 and row["has_choice"] == True:
+                elif row["is_reward"] == 0 and row["is_choice"] == True:
                     color = "pink"
                     if row["reward_available"] == 0:
                         color = "crimson"
@@ -295,20 +295,20 @@ def segmented_raster_vertical(
 
                 ax.set_title(odor_label, color=color_dict_label[row["odor_label"]])
 
-                if row["active_patch"] != previous_active:
+                if row["patch_number"] != previous_active:
                     value += 1
-                    previous_active = row["active_patch"]
+                    previous_active = row["patch_number"]
                 ax.bar(
                     value,
-                    bottom=row["visit_number"],
+                    bottom=row["site_number"],
                     height=1,
                     width=1,
                     color=color,
                     edgecolor="darkgrey",
                     linewidth=0.5,
                 )
-                ax.set_xlim(-1, selected_sites.active_patch.nunique() + 1)
-                ax.set_ylim(-0.5, reward_sites.visit_number.max() + 1)
+                ax.set_xlim(-1, selected_sites.patch_number.nunique() + 1)
+                ax.set_ylim(-0.5, reward_sites.site_number.max() + 1)
                 ax.set_ylabel("Site number")
                 ax.set_xlabel("Patch number")
 
@@ -367,7 +367,7 @@ def speed_traces_value(
                 linewidth=0,
             )
 
-    for i in trial_summary.has_choice.unique():
+    for i in trial_summary.is_choice.unique():
         assigned_colors = choose_palette(trial_summary, condition=condition)
 
         i = int(i)
@@ -380,7 +380,7 @@ def speed_traces_value(
             df_results = (
                 trial_summary.loc[
                     (trial_summary.odor_label == odor_label)
-                    & (trial_summary.has_choice == i)
+                    & (trial_summary.is_choice == i)
                 ]
                 .groupby([condition, "odor_sites", "times"])[["speed"]]
                 .mean()
@@ -481,7 +481,7 @@ def speed_traces_efficient(
 
     for collected_label in [0, 1]:
         for i, selected_trials in trial_summary.loc[
-            trial_summary.has_choice == collected_label
+            trial_summary.is_choice == collected_label
         ].groupby("odor_sites"):
             ax[0][collected_label].plot(
                 "times",
@@ -493,7 +493,7 @@ def speed_traces_efficient(
             )
 
         selected_trials = (
-            trial_summary.loc[trial_summary.has_choice == collected_label]
+            trial_summary.loc[trial_summary.is_choice == collected_label]
             .groupby("times")["speed"]
             .mean()
             .reset_index()
@@ -512,7 +512,7 @@ def speed_traces_efficient(
         sns.lineplot(
             x="times",
             y="speed",
-            data=trial_summary.loc[(trial_summary.has_choice == collected_label)],
+            data=trial_summary.loc[(trial_summary.is_choice == collected_label)],
             color=colors[collected_label],
             ax=ax[0][2],
             errorbar=("sd"),
@@ -521,8 +521,8 @@ def speed_traces_efficient(
 
         # ---------- water collection or not
         plot_df = trial_summary.loc[
-            (trial_summary.reward_delivered == collected_label)
-            & (trial_summary.has_choice == 1)
+            (trial_summary.is_reward == collected_label)
+            & (trial_summary.is_choice == 1)
         ]
         for i, selected_trials in plot_df.groupby("odor_sites"):
             ax[1][collected_label].plot(
@@ -561,8 +561,8 @@ def speed_traces_efficient(
         # ------------ water depletion or not
         plot_df = trial_summary.loc[
             (trial_summary.depleted == collected_label)
-            & (trial_summary.has_choice == 1)
-            & (trial_summary.reward_delivered == 0)
+            & (trial_summary.is_choice == 1)
+            & (trial_summary.is_reward == 0)
         ]
         for i, selected_trials in plot_df.groupby("odor_sites"):
             ax[2][collected_label].plot(
@@ -618,21 +618,21 @@ def preward_estimates(
     save: bool = False,
 ):
 
-    summary = reward_sites.groupby(["active_patch", "odor_label"]).agg(
+    summary = reward_sites.groupby(["patch_number", "odor_label"]).agg(
         {
-            "reward_delivered": "sum",
-            "visit_number": "count",
+            "is_reward": "sum",
+            "site_number": "count",
             "reward_probability": "min",
         }
     )
-    summary = summary.loc[summary.visit_number > minimum_size]
+    summary = summary.loc[summary.site_number > minimum_size]
     summary.reset_index(inplace=True)
 
     fig = plt.figure(figsize=(12, 5))
     ax = plt.subplot(1, 3, 1)
     sns.boxplot(
         x="odor_label",
-        y="reward_delivered",
+        y="is_reward",
         hue="odor_label",
         palette=color_dict_label,
         data=summary,
@@ -641,7 +641,7 @@ def preward_estimates(
     )
     sns.stripplot(
         x="odor_label",
-        y="reward_delivered",
+        y="is_reward",
         hue="odor_label",
         palette=["black", "black", "black"],
         data=summary,
@@ -658,7 +658,7 @@ def preward_estimates(
     ax = plt.subplot(1, 3, 2)
     sns.boxplot(
         x="odor_label",
-        y="visit_number",
+        y="site_number",
         hue="odor_label",
         palette=color_dict_label,
         data=summary,
@@ -667,7 +667,7 @@ def preward_estimates(
     )
     sns.stripplot(
         x="odor_label",
-        y="visit_number",
+        y="site_number",
         hue="odor_label",
         palette=["black", "black", "black"],
         data=summary,
@@ -774,7 +774,7 @@ def velocity_traces_odor_entry(
         df_results = (
             trial_summary.loc[
                 (trial_summary.odor_label == odor_label)
-                & (trial_summary.visit_number == 0)
+                & (trial_summary.site_number == 0)
             ]
             .groupby(["odor_sites", "times", "odor_label"])[["speed"]]
             .median()
@@ -824,29 +824,29 @@ def summary_withinsession_values(reward_sites,
 
     fig, ax = plt.subplots(3,2,figsize=(16,10), sharex=True)
 
-    df = reward_sites.loc[(reward_sites.last_site == 1)&(reward_sites.visit_number != 0)].groupby(['active_patch', 'odor_label']).agg({'reward_probability':'min','visit_number':'mean', 'cumulative_rewards': 'max', 'consecutive_rewards': 'max', 'cumulative_failures': 'max', 'consecutive_failures': 'max'}).reset_index()
+    df = reward_sites.loc[(reward_sites.last_site == 1)&(reward_sites.site_number != 0)].groupby(['patch_number', 'odor_label']).agg({'reward_probability':'min','site_number':'mean', 'cumulative_rewards': 'max', 'consecutive_rewards': 'max', 'cumulative_failures': 'max', 'consecutive_failures': 'max'}).reset_index()
 
     ax[0][0].set_ylabel('P(reward) \n when leaving')            
     ax[0][0].set_ylim(-0.1,1.1)
 
-    # df = df.groupby(['active_patch','odor_label']).agg({'visit_number':'sum', 'reward_probability':'mean'}).reset_index()      
-    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='reward_probability', ax=ax[0][0], palette=color_dict_label,  legend=False)
+    # df = df.groupby(['patch_number','odor_label']).agg({'site_number':'sum', 'reward_probability':'mean'}).reset_index()      
+    sns.scatterplot(df, x='patch_number', size="site_number", hue='odor_label', sizes=(30, 500), y='reward_probability', ax=ax[0][0], palette=color_dict_label,  legend=False)
     ax[0][0].set_ylabel('P(reward) \n when leaving')            
     ax[0][0].set_ylim(-0.1,1.1)
 
-    sns.scatterplot(df, x='active_patch', hue='odor_label', sizes=(30, 500), y='visit_number', ax=ax[0][1], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', hue='odor_label', sizes=(30, 500), y='site_number', ax=ax[0][1], palette=color_dict_label,  legend=False)
     ax[0][1].set_ylabel('Total stops')            
 
-    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='consecutive_rewards', ax=ax[1][0], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', size="site_number", hue='odor_label', sizes=(30, 500), y='consecutive_rewards', ax=ax[1][0], palette=color_dict_label,  legend=False)
     ax[1][0].set_ylabel('Consecutive rewards')            
 
-    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='cumulative_rewards', ax=ax[1][1], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', size="site_number", hue='odor_label', sizes=(30, 500), y='cumulative_rewards', ax=ax[1][1], palette=color_dict_label,  legend=False)
     ax[1][1].set_ylabel('Cumulative rewards')            
 
-    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='cumulative_failures', ax=ax[2][0], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', size="site_number", hue='odor_label', sizes=(30, 500), y='cumulative_failures', ax=ax[2][0], palette=color_dict_label,  legend=False)
     ax[2][0].set_ylabel('Cumulative failures')            
 
-    sns.scatterplot(df, x='active_patch', size="visit_number", hue='odor_label', sizes=(30, 500), y='consecutive_failures', ax=ax[2][1], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', size="site_number", hue='odor_label', sizes=(30, 500), y='consecutive_failures', ax=ax[2][1], palette=color_dict_label,  legend=False)
     ax[2][1].set_ylabel('Consecutive failures')            
 
     ax[2][0].set_xlabel('Patch number')
@@ -980,25 +980,25 @@ def raster_with_velocity(
     },
 ):
 
-    active_patch = -1
+    patch_number = -1
     first_entry = True
     patch_onset = pd.DataFrame()
     for index, row in active_site.iterrows():
-        if row['label'] == 'InterSite' and active_patch == row['active_patch'] and first_entry:
+        if row['label'] == 'InterSite' and patch_number == row['patch_number'] and first_entry:
             new_rows = pd.DataFrame([
-            {'active_patch': row['active_patch'], 'patch_onset': row.name}])
+            {'patch_number': row['patch_number'], 'patch_onset': row.name}])
             patch_onset = pd.concat([patch_onset, new_rows])
             first_entry = False
             
-        if active_patch != row['active_patch']:
-            active_patch = row['active_patch']
+        if patch_number != row['patch_number']:
+            patch_number = row['patch_number']
             first_entry = True
     
-    merged_df = pd.merge_asof(active_site, patch_onset, on='active_patch')
+    merged_df = pd.merge_asof(active_site, patch_onset, on='patch_number')
     active_site['patch_onset'] = merged_df['patch_onset'].values
     active_site['time_since_entry'] = active_site.index - active_site['patch_onset']
     active_site['exit_epoch'] = active_site['time_since_entry'] + active_site['duration_epoch']
-    test_df = active_site.groupby('active_patch').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
+    test_df = active_site.groupby('patch_number').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
     
@@ -1015,38 +1015,38 @@ def raster_with_velocity(
         elif row['label'] == 'InterSite':
             color = '#808080'
             
-        if row['label'] == 'RewardSite':
-            if row['visit_number'] == 0:
-                ax1.scatter(0, row.active_patch, color=color_dict_label[row.odor_label], marker='s', s=60, edgecolor='black', linewidth=0.0)
+        if row['label'] == 'OdorSite':
+            if row['site_number'] == 0:
+                ax1.scatter(0, row.patch_number, color=color_dict_label[row.odor_label], marker='s', s=60, edgecolor='black', linewidth=0.0)
 
-            if row["reward_delivered"] == 1 and row["has_choice"] == True:
+            if row["is_reward"] == 1 and row["is_choice"] == True:
                 color = "steelblue"
-            elif row["reward_delivered"] == 0 and row["has_choice"] == True:
+            elif row["is_reward"] == 0 and row["is_choice"] == True:
                 color = "pink"
             else:
                 color = 'yellow'
-        ax1.barh(int(row['active_patch']), left=row.time_since_entry, height=0.85, width=row.duration_epoch, color=color,  linewidth=0.5)
+        ax1.barh(int(row['patch_number']), left=row.time_since_entry, height=0.85, width=row.duration_epoch, color=color,  linewidth=0.5)
         
         if row['time_since_entry'] <0:
-            current_trial = trial_summary[trial_summary['active_patch'] == row['active_patch']]
+            current_trial = trial_summary[trial_summary['patch_number'] == row['patch_number']]
 
-            ax2.plot(current_trial['times'], current_trial['speed']+(max_speed*(row['active_patch']))+max_speed/1.8, color='black', linewidth=0.8, alpha=0.8)
-            ax2.set_ylim(0, max_speed*(active_site['active_patch'].max()+2))
+            ax2.plot(current_trial['times'], current_trial['speed']+(max_speed*(row['patch_number']))+max_speed/1.8, color='black', linewidth=0.8, alpha=0.8)
+            ax2.set_ylim(0, max_speed*(active_site['patch_number'].max()+2))
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
     sns.despine()
-    ax1.set_ylim(-1, max(active_site.active_patch) + 1)
+    ax1.set_ylim(-1, max(active_site.patch_number) + 1)
     
-    if active_site.groupby('active_patch').time_since_entry.min().min() < -50:
+    if active_site.groupby('patch_number').time_since_entry.min().min() < -50:
         time_left = -50
     else:
-        time_left = active_site.groupby('active_patch').time_since_entry.min().min()
+        time_left = active_site.groupby('patch_number').time_since_entry.min().min()
         
-    if active_site.groupby('active_patch').time_since_entry.max().max() > 200:
+    if active_site.groupby('patch_number').time_since_entry.max().max() > 200:
         time_right = 150
     else:
-        time_right = active_site.groupby('active_patch').time_since_entry.max().max()
+        time_right = active_site.groupby('patch_number').time_since_entry.max().max()
       
     ax1.set_xlim(time_left, time_right)
     
@@ -1071,9 +1071,9 @@ def raster_with_velocity(
 #     df_skip = pd.DataFrame()
 #     for index, row in reward_sites.iterrows():
 #         ax1 = plt.subplot(gs[0:3, 0])
-#         if row['collected'] == 1 and row['has_choice'] == True:
+#         if row['collected'] == 1 and row['is_choice'] == True:
 #             color='steelblue'
-#         elif row['collected'] == 0 and row['has_choice'] == True:
+#         elif row['collected'] == 0 and row['is_choice'] == True:
 #             color='pink'
 #             if row['reward_available'] == 0:
 #                 color='crimson'
@@ -1083,9 +1083,9 @@ def raster_with_velocity(
 #             else:
 #                 color='lightgrey'
 
-#         ax1.barh(int(row['active_patch']), left=row['visit_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
+#         ax1.barh(int(row['patch_number']), left=row['site_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
 
-#         ax1.set_xlim(-1,max(reward_sites.visit_number)+1)
+#         ax1.set_xlim(-1,max(reward_sites.site_number)+1)
 #         ax1.set_ylabel('Patch number')
 #         ax1.set_xlabel('Site number')
 
@@ -1096,12 +1096,12 @@ def raster_with_velocity(
 #         else:
 #             patch_color='yellow'
 
-#         ax1.barh(int(row['active_patch']), left = -0.8, height=1, width =0.5, color=patch_color, edgecolor='black', linewidth=0.5)
+#         ax1.barh(int(row['patch_number']), left = -0.8, height=1, width =0.5, color=patch_color, edgecolor='black', linewidth=0.5)
 
 #     odor_list_color = ['orange', 'indigo', 'darkgreen']
 #     odors = []
 #     for index, odor in enumerate(reward_sites['odor_label'].unique()):
-#         odors.append(mpatches.Patch(color=odor_list_color[index], label=(str(odor) + '_' + str(reward_sites.loc[reward_sites.odor_label == odor].reward_delivered.max()))))
+#         odors.append(mpatches.Patch(color=odor_list_color[index], label=(str(odor) + '_' + str(reward_sites.loc[reward_sites.odor_label == odor].is_reward.max()))))
 
 #     label_2 = mpatches.Patch(color='steelblue', label='Harvested')
 #     label_3 = mpatches.Patch(color='crimson', label='No reward - depleted')
@@ -1110,7 +1110,7 @@ def raster_with_velocity(
 #     label_6 = mpatches.Patch(color='pink', label='No reward - not depleted')
 #     odors.extend([label_2, label_3,label_4,label_5,label_6])
 #     ax1.legend(handles=odors, loc='upper left', bbox_to_anchor=(0.8, 1), fontsize=8)
-#     ax1.set_ylim(-1,max(reward_sites.active_patch)+1)
+#     ax1.set_ylim(-1,max(reward_sites.patch_number)+1)
 #     plt.tight_layout()
 #     sns.despine()
 
@@ -1124,9 +1124,9 @@ def raster_with_velocity(
 #             value = 0
 #             for index, row in selected_sites.iterrows():
 #                 # Choose the color of the site
-#                 if row['collected'] == 1 and row['has_choice'] == True:
+#                 if row['collected'] == 1 and row['is_choice'] == True:
 #                     color='steelblue'
-#                 elif row['collected'] == 0 and row['has_choice'] == True:
+#                 elif row['collected'] == 0 and row['is_choice'] == True:
 #                     color='pink'
 #                     if row['reward_available'] == 0:
 #                         color='crimson'
@@ -1145,11 +1145,11 @@ def raster_with_velocity(
 
 #                 ax.set_title(odor_label, color=patch_color)
 
-#                 if row['active_patch'] != previous_active:
+#                 if row['patch_number'] != previous_active:
 #                     value+=1
-#                     previous_active = row['active_patch']
-#                 ax.barh(value, left=row['visit_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
-#                 ax.set_xlim(0,max(reward_sites.visit_number)+1)
+#                     previous_active = row['patch_number']
+#                 ax.barh(value, left=row['site_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
+#                 ax.set_xlim(0,max(reward_sites.site_number)+1)
 #         ax4.set_xlabel('Site number')
 
 #     # Set the maximum number of ticks on the x-axis
@@ -1177,18 +1177,18 @@ def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = Fals
 
         df_results = (
             reward_sites.loc[reward_sites["odor_label"] == odor_label]
-            .groupby("past_no_reward_count")["visit_number"]
+            .groupby("past_no_reward_count")["site_number"]
             .count()
             .reset_index()
         )
         df_results["p(Stay)"] = (
             reward_sites.loc[reward_sites["odor_label"] == odor_label]
-            .groupby("past_no_reward_count")["has_choice"]
+            .groupby("past_no_reward_count")["is_choice"]
             .mean()
         )
-        df_results = df_results.loc[df_results["visit_number"] >= 3]
+        df_results = df_results.loc[df_results["site_number"] >= 3]
 
-        sufficient_sites = df_results.visit_number.unique()
+        sufficient_sites = df_results.site_number.unique()
 
         df_results["odor_label"] = odor_label
         df_results["amount"] = reward_sites.loc[
@@ -1200,7 +1200,7 @@ def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = Fals
             odor_label
             + "_"
             + reward_sites.loc[reward_sites["odor_label"] == odor_label][
-                "reward_delivered"
+                "is_reward"
             ]
             .max()
             .astype(str)
@@ -1220,7 +1220,7 @@ def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = Fals
             odor_label
             + "_"
             + reward_sites.loc[reward_sites["odor_label"] == odor_label][
-                "reward_delivered"
+                "is_reward"
             ]
             .max()
             .astype(str)
@@ -1234,7 +1234,7 @@ def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = Fals
                 ax.text(
                     df_results["past_no_reward_count"].values[j],
                     df_results["p(Stay)"].values[j] + 0.1,
-                    str(df_results["visit_number"].values[j]),
+                    str(df_results["site_number"].values[j]),
                     ha="center",
                     size=10,
                     color="red",
@@ -1243,7 +1243,7 @@ def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = Fals
                 ax.text(
                     df_results["past_no_reward_count"].values[j],
                     df_results["p(Stay)"].values[j] - 0.1,
-                    str(df_results["visit_number"].values[j]),
+                    str(df_results["site_number"].values[j]),
                     ha="center",
                     size=10,
                     color="red",
@@ -1263,7 +1263,7 @@ def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = Fals
         return df_results_summary
 
 
-def pstay_visit_number(reward_sites, config, save=False, summary: bool = False):
+def pstay_site_number(reward_sites, config, save=False, summary: bool = False):
     odor_label_list = reward_sites["odor_label"].unique()
     df_results_summary = pd.DataFrame()
 
@@ -1278,18 +1278,18 @@ def pstay_visit_number(reward_sites, config, save=False, summary: bool = False):
 
         df_results = (
             reward_sites.loc[reward_sites["odor_label"] == odor_label]
-            .groupby("visit_number")["label"]
+            .groupby("site_number")["label"]
             .count()
             .reset_index()
         )
         df_results.rename(columns={"label": "total_trials"}, inplace=True)
         df_results["p(Stay)"] = (
             reward_sites.loc[reward_sites["odor_label"] == odor_label]
-            .groupby("visit_number")["has_choice"]
+            .groupby("site_number")["is_choice"]
             .mean()
         )
         df_results = df_results.loc[df_results["total_trials"] >= 3]
-        sufficient_sites = df_results.visit_number.unique()
+        sufficient_sites = df_results.site_number.unique()
 
         df_results["odor_label"] = odor_label
         df_results["amount"] = reward_sites.loc[
@@ -1301,13 +1301,13 @@ def pstay_visit_number(reward_sites, config, save=False, summary: bool = False):
             odor_label
             + "_"
             + reward_sites.loc[reward_sites["odor_label"] == odor_label][
-                "reward_delivered"
+                "is_reward"
             ]
             .max()
             .astype(str)
         )
         sns.lineplot(
-            x="visit_number", y="p(Stay)", data=df_results, color="k", marker="o", ax=ax
+            x="site_number", y="p(Stay)", data=df_results, color="k", marker="o", ax=ax
         )
         ax.set_xlabel("Visit number")
         ax.set_ylabel("P(Stay)")
@@ -1316,7 +1316,7 @@ def pstay_visit_number(reward_sites, config, save=False, summary: bool = False):
         for j in range(len(df_results)):
             if df_results["p(Stay)"].values[j] < 0.1:
                 ax.text(
-                    df_results["visit_number"].values[j],
+                    df_results["site_number"].values[j],
                     df_results["p(Stay)"].values[j] + 0.1,
                     str(df_results["total_trials"].values[j]),
                     ha="center",
@@ -1325,7 +1325,7 @@ def pstay_visit_number(reward_sites, config, save=False, summary: bool = False):
                 )
             else:
                 ax.text(
-                    df_results["visit_number"].values[j],
+                    df_results["site_number"].values[j],
                     df_results["p(Stay)"].values[j] - 0.1,
                     str(df_results["total_trials"].values[j]),
                     ha="center",
@@ -1410,7 +1410,7 @@ def raster_plot(x_start, pdf):
         if site_label == "Reward":
             site_label = f"Odor {site[1]['data']['odor']['index']+1}"
             facecolor = label_dict[site_label]
-        elif site_label == "RewardSite":
+        elif site_label == "OdorSite":
             site_label = f"Odor {site[1]['data']['odor_specification']['index']+1}"
             facecolor = label_dict[site_label]
         elif site_label == "InterPatch":

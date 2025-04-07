@@ -31,10 +31,10 @@ class MetricsVrForaging:
         df = pd.DataFrame()
         # Summary of different relevants aspects -------------------------------------------------
 
-        unrewarded_stops = reward_sites.loc[reward_sites.reward_delivered==0]['reward_amount'].count()
-        rewarded_stops = reward_sites.loc[reward_sites.reward_delivered==1]['reward_amount'].count()
-        water_collected = reward_sites.loc[(reward_sites['reward_delivered']==1)]['reward_amount'].sum()
-        total_stops = reward_sites.loc[(reward_sites['has_choice']==True)]['reward_amount'].count()
+        unrewarded_stops = reward_sites.loc[reward_sites.is_reward==0]['reward_amount'].count()
+        rewarded_stops = reward_sites.loc[reward_sites.is_reward==1]['reward_amount'].count()
+        water_collected = reward_sites.loc[(reward_sites['is_reward']==1)]['reward_amount'].sum()
+        total_stops = reward_sites.loc[(reward_sites['is_choice']==True)]['reward_amount'].count()
 
         print('Total sites: ' ,len(reward_sites), ' | ', 'Total rewarded stops: ',rewarded_stops, '(',  np.round((rewarded_stops/total_stops)*100,2),'%) | ', 
             'Total unrewarded stops: ',unrewarded_stops,'(',  np.round((unrewarded_stops/total_stops)*100,2),'%) | ','Water consumed: ', water_collected, 'ul')
@@ -43,7 +43,7 @@ class MetricsVrForaging:
         )
 
         for odor_label in reward_sites.odor_label.unique():
-            values = reward_sites.loc[(reward_sites['odor_label']==odor_label)&(reward_sites['reward_delivered']==1)]['reward_amount'].sum()
+            values = reward_sites.loc[(reward_sites['odor_label']==odor_label)&(reward_sites['is_reward']==1)]['reward_amount'].sum()
             print(f'{odor_label} {values} ul')
             
         df.at[0,'odor_sites_travelled'] = int(len(reward_sites))
@@ -52,7 +52,7 @@ class MetricsVrForaging:
         df.at[0,'rewarded_stops'] = int(rewarded_stops)
         df.at[0,'total_stops'] = int(total_stops)
         df.at[0,'session_duration_min'] = (reward_sites.index[-1] - reward_sites.index[0])/60
-        df.at[0, 'total_patches_visited'] = reward_sites.loc[reward_sites['visit_number'] >= 1].active_patch.nunique()
+        df.at[0, 'total_patches_visited'] = reward_sites.loc[reward_sites['site_number'] >= 1].patch_number.nunique()
         
         # Initialize a pointer for the data values
         data_pointer = 0
@@ -73,7 +73,7 @@ class MetricsVrForaging:
         try:
             # Iterate through each row of reward_sites
             for index, row in reward_sites.iterrows():
-                if row['reward_delivered'] == 1:
+                if row['is_reward'] == 1:
                     # Copy the next available value from data and move the pointer
                     reward_sites.at[index, 'delay_s'] = delay[data_pointer]
                     reward_sites.at[index, 'velocity_threshold_cms'] = velocity_threshold[data_pointer]
@@ -97,7 +97,7 @@ class MetricsVrForaging:
         df.at[0,'start_stop_duration'] = reward_sites['stop_duration_s'].min()
         df.at[0,'end_stop_duration'] = reward_sites['stop_duration_s'].max()
         df.at[0, 'sites_to_max_stop_duration'] = reward_sites[reward_sites['stop_duration_s'] == reward_sites['stop_duration_s'].max()].iloc[0]['odor_sites']
-        df.at[0, 'rewarded_sites_in_max_stop'] = int(reward_sites[(reward_sites['stop_duration_s'] == reward_sites['stop_duration_s'].max())&(reward_sites.has_choice == 1)]['odor_sites'].nunique())
+        df.at[0, 'rewarded_sites_in_max_stop'] = int(reward_sites[(reward_sites['stop_duration_s'] == reward_sites['stop_duration_s'].max())&(reward_sites.is_choice == 1)]['odor_sites'].nunique())
 
         df.at[0,'start_velocity_threshold'] = reward_sites['velocity_threshold_cms'].min()
         df.at[0,'end_velocity_threshold'] = reward_sites['velocity_threshold_cms'].max()
@@ -129,11 +129,11 @@ class MetricsVrForaging:
         active_site['session'] = self.session
         
         # Remove segments where the mouse was disengaged
-        last_engaged_patch = odor_sites['active_patch'][odor_sites['skipped_count'] >= 10].min()
+        last_engaged_patch = odor_sites['patch_number'][odor_sites['skipped_count'] >= 10].min()
         if pd.isna(last_engaged_patch):
-            last_engaged_patch = odor_sites['active_patch'].max()
+            last_engaged_patch = odor_sites['patch_number'].max()
             
-        odor_sites['engaged'] = odor_sites['active_patch'] <= last_engaged_patch  
+        odor_sites['engaged'] = odor_sites['patch_number'] <= last_engaged_patch  
         
         # Recover color palette
         dict_odor = {}
@@ -142,7 +142,7 @@ class MetricsVrForaging:
             # color_dict_label[patches['label']] = odor_list_color[i]
             dict_odor[i] = patches['label']
         
-        trial_summary = plotting.trial_collection(odor_sites[['has_choice', 'visit_number', 'odor_label', 'odor_sites', 'reward_delivered','depleted',
+        trial_summary = plotting.trial_collection(odor_sites[['is_choice', 'site_number', 'odor_label', 'odor_sites', 'is_reward','depleted',
                                                                 'reward_probability','reward_amount','reward_available']], 
                                                   encoder_data, 
                                                   self.mouse, 

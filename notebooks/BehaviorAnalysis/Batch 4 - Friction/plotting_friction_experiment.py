@@ -197,7 +197,7 @@ def summary_main_variables(general_df,
     
     # Total patches
     # axes = ax[2][0]
-    variable = 'active_patch'
+    variable = 'patch_number'
     sns.boxplot(x='odor_label', y=variable, hue='odor_label', palette = color_dict_label, data=general_df, order=['Methyl Butyrate', 'Alpha-pinene'],legend=False, zorder=10, width =0.7, ax=axes)
     plot_lines(general_df, axes, variable, condition)
     plot_significance(general_df, axes, variable)
@@ -228,7 +228,7 @@ def across_sessions_one_plot(summary_df, variable, save=False):
     max_value = summary_df[variable].max()
     for i, mouse in enumerate(summary_df.mouse.unique()):
         fig = plt.figure(figsize=(20,6))
-        sns.scatterplot(summary_df.loc[(summary_df.mouse == mouse)], x='session_n', size="visit_number", hue='experiment', style='odor_label', sizes=(30, 500), y=variable, 
+        sns.scatterplot(summary_df.loc[(summary_df.mouse == mouse)], x='session_n', size="site_number", hue='experiment', style='odor_label', sizes=(30, 500), y=variable, 
                         palette=color_dict_experiment,  alpha=0.7,
                         markers=style_dict_odor_label)
 
@@ -252,7 +252,7 @@ def across_sessions_multi_plot(summary_df, variable, condition: str = 'None', sa
     for i, experiment in enumerate(summary_df.experiment.unique()):
         ax = plt.subplot(2, 4, i + 1)
             
-        sns.scatterplot(summary_df.loc[(summary_df.experiment == experiment)], x='within_session_n', size="visit_number", hue='odor_label', sizes=(30, 500), y=variable, palette=color_dict_label, ax=ax, legend=False, alpha=0.7)
+        sns.scatterplot(summary_df.loc[(summary_df.experiment == experiment)], x='within_session_n', size="site_number", hue='odor_label', sizes=(30, 500), y=variable, palette=color_dict_label, ax=ax, legend=False, alpha=0.7)
 
         sns.lineplot(x='within_session_n', y=variable, hue='odor_label', palette = color_dict_label,  legend=False,  data=summary_df.loc[(summary_df.experiment == experiment)], marker='', ax=ax)
 

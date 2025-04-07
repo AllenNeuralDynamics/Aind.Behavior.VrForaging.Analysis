@@ -92,7 +92,7 @@ def Reward_VirtualSiteGeneratorHelper(rate: float = 0,contrast: float = 0.5, min
         
     return vr_task_logic.VirtualSiteGenerator(
         render_specification=vr_task_logic.RenderSpecification(contrast=contrast),
-        label=vr_task_logic.VirtualSiteLabels.REWARDSITE,
+        label=vr_task_logic.VirtualSiteLabels.OdorSite,
         length_distribution=length_distribution,
     )
 

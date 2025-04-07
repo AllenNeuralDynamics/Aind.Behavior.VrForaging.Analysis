@@ -55,31 +55,31 @@ def parse_reward_sites(datasources: Dict[str, data_io.DataStreamSource]) -> pd.D
     choice_feedback = software_events.streams.ChoiceFeedback.data
 
     reward_sites = active_site[active_site["data"].apply(lambda x: x['label']) == 'Reward']
-    reward_sites["active_patch"] = -1
-    reward_sites["visit_number"] = -1
-    reward_sites["has_choice"] = False
-    reward_sites["reward_delivered"] = 0
+    reward_sites["patch_number"] = -1
+    reward_sites["site_number"] = -1
+    reward_sites["is_choice"] = False
+    reward_sites["is_reward"] = 0
     reward_sites["past_no_reward_count"] = 0
     reward_sites["reward_available_in_patch"] = 0
     past_no_reward_counter = 0
     current_patch_idx = -1
 
-    visit_number = 0
+    site_number = 0
     for idx, event in enumerate(reward_sites.iterrows()):
 
-        #active_patch
+        #patch_number
         arg_min, _ = harp.processing.find_closest(
             event[0],
             patches.index.values,
             mode="below_zero")
         if not (np.isnan(arg_min)):
-            reward_sites.loc[event[0], "active_patch"] = arg_min
+            reward_sites.loc[event[0], "patch_number"] = arg_min
         if current_patch_idx != arg_min:
             current_patch_idx = arg_min
-            visit_number = 0
+            site_number = 0
         else:
-            visit_number += 1
-        reward_sites.loc[event[0], "visit_number"] = visit_number
+            site_number += 1
+        reward_sites.loc[event[0], "site_number"] = site_number
 
         #available reward
         arg_min, _ = harp.processing.find_closest(
@@ -92,20 +92,20 @@ def parse_reward_sites(datasources: Dict[str, data_io.DataStreamSource]) -> pd.D
         # outcomes
         if idx < len(reward_sites) - 1:
             choice = choice_feedback.loc[(choice_feedback.index >= reward_sites.index[idx]) & (choice_feedback.index < reward_sites.index[idx+1])]
-            reward_delivered = give_reward.loc[(give_reward.index >= reward_sites.index[idx]) & (give_reward.index < reward_sites.index[idx+1])]
+            is_reward = give_reward.loc[(give_reward.index >= reward_sites.index[idx]) & (give_reward.index < reward_sites.index[idx+1])]
         else: #account for the last trial
             choice = choice_feedback.loc[(choice_feedback.index >= reward_sites.index[idx])]
-            reward_delivered = give_reward.loc[(give_reward.index >= reward_sites.index[idx])]
+            is_reward = give_reward.loc[(give_reward.index >= reward_sites.index[idx])]
 
-        reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
-        reward_sites.loc[event[0], "reward_delivered"] = reward_delivered.iloc[0]["data"] if len(reward_delivered) > 0 else np.nan
+        reward_sites.loc[event[0], "is_choice"] = len(choice) > 0
+        reward_sites.loc[event[0], "is_reward"] = is_reward.iloc[0]["data"] if len(is_reward) > 0 else np.nan
         reward_sites.loc[event[0], "past_no_reward_count"] = past_no_reward_counter
-        if reward_sites.loc[event[0], "reward_delivered"] == 0:
+        if reward_sites.loc[event[0], "is_reward"] == 0:
             past_no_reward_counter += 1
         else:
             past_no_reward_counter = 0
 
-    reward_sites["patch_label"] = reward_sites["active_patch"].apply(lambda x : patches.iloc[x]["data"]["label"])
+    reward_sites["patch_label"] = reward_sites["patch_number"].apply(lambda x : patches.iloc[x]["data"]["label"])
     return reward_sites
 
 

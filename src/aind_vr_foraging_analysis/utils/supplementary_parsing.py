@@ -43,7 +43,7 @@ def assign_odor_triggers(reward_sites, odor_triggers):
     
 class AddExtraColumns:
     def __init__(self, all_epochs, run_on_init=True):
-        self.reward_sites = all_epochs.loc[all_epochs.label == "RewardSite"]
+        self.reward_sites = all_epochs.loc[all_epochs.label == "OdorSite"]
         self.all_epochs = all_epochs
 
         if run_on_init:
@@ -64,8 +64,8 @@ class AddExtraColumns:
 
         for index, row in self.reward_sites.iterrows():
             # Total number of rewards in the current patch ( accumulated)
-            if row["active_patch"] != previous_patch:
-                previous_patch = row["active_patch"]
+            if row["patch_number"] != previous_patch:
+                previous_patch = row["patch_number"]
                 cumulative_rewards = 0
                 cumulative_failures = 0
                 consecutive_failures = 0
@@ -77,7 +77,7 @@ class AddExtraColumns:
             self.reward_sites.loc[index, "cumulative_failures"] = cumulative_failures
             self.reward_sites.loc[index, "consecutive_failures"] = consecutive_failures
 
-            if row["reward_delivered"] != 0:
+            if row["is_reward"] != 0:
                 cumulative_rewards += 1
                 consecutive_rewards += 1
                 consecutive_failures = 0
@@ -87,7 +87,7 @@ class AddExtraColumns:
                 after_choice_cumulative_rewards
             )
 
-            if row["reward_delivered"] == 0 and row["has_choice"] == True:
+            if row["is_reward"] == 0 and row["is_choice"] == True:
                 cumulative_failures += 1
                 consecutive_failures += 1
                 consecutive_rewards = 0
@@ -97,9 +97,9 @@ class AddExtraColumns:
 
         for index, row in self.reward_sites.iterrows():
             # Number of first sites without stopping - useful for filtering disengagement
-            if row["has_choice"] == False and row["visit_number"] == 0:
+            if row["is_choice"] == False and row["site_number"] == 0:
                 skipped_count += 1
-            elif row["has_choice"] == True:
+            elif row["is_choice"] == True:
                 skipped_count = 0
             self.reward_sites.loc[index, "skipped_count"] = skipped_count
 
@@ -108,25 +108,25 @@ class AddExtraColumns:
         self.reward_sites["odor_sites"] = np.arange(len(self.reward_sites))
 
         self.reward_sites["collected"] = (
-            self.reward_sites["reward_delivered"] * self.reward_sites["reward_amount"]
+            self.reward_sites["is_reward"] * self.reward_sites["reward_amount"]
         )
 
         self.reward_sites["depleted"] = np.where(
             self.reward_sites["reward_available"] == 0, 1, 0
         )
 
-        self.reward_sites["next_visit_number"] = self.reward_sites[
-            "visit_number"
+        self.reward_sites["next_site_number"] = self.reward_sites[
+            "site_number"
         ].shift(-2)
         self.reward_sites["last_visit"] = np.where(
-            (self.reward_sites["next_visit_number"] == 0)
-            & (self.reward_sites["has_choice"] == True),
+            (self.reward_sites["next_site_number"] == 0)
+            & (self.reward_sites["is_choice"] == True),
             1,
             0,
         )
-        self.reward_sites.drop(columns=["next_visit_number"], inplace=True)
+        self.reward_sites.drop(columns=["next_site_number"], inplace=True)
 
-        self.reward_sites["last_site"] = self.reward_sites["visit_number"].shift(-1)
+        self.reward_sites["last_site"] = self.reward_sites["site_number"].shift(-1)
         self.reward_sites["last_site"] = np.where(
             self.reward_sites["last_site"] == 0, 1, 0
         )
@@ -135,22 +135,22 @@ class AddExtraColumns:
         all_epochs = self.all_epochs
         all_epochs.loc[:, "total_sites"] = 0
 
-        active_patch = -1
+        patch_number = -1
         total_sites = -1
         time_interpatch = 0
         time_intersite = 0
         for i, row in all_epochs.iterrows():
             if row["label"] == "InterPatch":
-                active_patch += 1
+                patch_number += 1
                 time_interpatch = i
-                all_epochs.at[i, "active_patch"] = active_patch
+                all_epochs.at[i, "patch_number"] = patch_number
             if row["label"] == "InterSite":
                 total_sites += 1
                 time_intersite = i
-                all_epochs.at[i, "active_patch"] = active_patch
+                all_epochs.at[i, "patch_number"] = patch_number
                 all_epochs.at[i, "total_sites"] = total_sites
-            if row["label"] == "RewardSite":
-                if row["visit_number"] == 0:
+            if row["label"] == "OdorSite":
+                if row["site_number"] == 0:
                     all_epochs.at[i, "previous_interpatch"] = time_interpatch
                     all_epochs.at[i, "previous_intersite"] = time_intersite
                 else:
@@ -174,10 +174,10 @@ class AddExtraColumns:
 
 
     def add_previous_patch_info(self):
-        self.reward_sites["next_patch"] = self.reward_sites["active_patch"].shift(1)
+        self.reward_sites["next_patch"] = self.reward_sites["patch_number"].shift(1)
         self.reward_sites["next_odor"] = self.reward_sites["odor_label"].shift(1)
         self.reward_sites["same_patch"] = np.where(
-            (self.reward_sites["next_patch"] != self.reward_sites["active_patch"])
+            (self.reward_sites["next_patch"] != self.reward_sites["patch_number"])
             & (self.reward_sites["odor_label"] == self.reward_sites["next_odor"]),
             1,
             0,

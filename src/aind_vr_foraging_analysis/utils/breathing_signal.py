@@ -284,7 +284,7 @@ def plot_sniff_raster_conditioned(raster,
                                   velocity, 
                                   frequency_troughs: pd.DataFrame = None, 
                                   save = False):
-    condition = 'has_choice'
+    condition = 'is_choice'
     colors = ['crimson', 'steelblue']
 
     fig, ax = plt.subplots(3,4, figsize=(18, 10), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1]})
@@ -308,15 +308,15 @@ def plot_sniff_raster_conditioned(raster,
     axes4.legend(loc='upper right')
     axes1.set_title('Stopped')
 
-    condition = 'reward_delivered'
+    condition = 'is_reward'
     colors = ['crimson', 'steelblue']
 
     axes1, axes2, axes4 = ax[0][1], ax[1][1], ax[2][1]
     for axes in ax.flatten():
         axes.vlines(0, 0, 1, transform=axes.get_xaxis_transform(), color='black', alpha=0.5, linewidth=0.5)
         
-    raster_1 = raster.loc[(raster[condition] == 1)&(raster['has_choice']==1)]
-    raster_2 = raster.loc[(raster[condition] == 0)&(raster['has_choice']==1)]
+    raster_1 = raster.loc[(raster[condition] == 1)&(raster['is_choice']==1)]
+    raster_2 = raster.loc[(raster[condition] == 0)&(raster['is_choice']==1)]
     color1 = colors[1]
     color2 = colors[0]
 
@@ -326,60 +326,60 @@ def plot_sniff_raster_conditioned(raster,
     # sns.lineplot(data=frequency_troughs, x='times', y='instantaneous_frequency', hue=condition, ax=axes3, palette= colors, legend=False)
     # axes3.set_ylabel('Frequency (Hz)')
 
-    sns.lineplot(data=velocity.loc[(velocity['has_choice']==1)], x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= colors)
+    sns.lineplot(data=velocity.loc[(velocity['is_choice']==1)], x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= colors)
     axes4.set_xlabel('Time from odor onset (s)')
     axes4.set_ylabel('Velocity (cm/s)')
     axes4.legend(loc='upper right')
     axes1.set_title('Reward delivered')
 
-    condition = 'visit_number'
+    condition = 'site_number'
     colors = ['grey', 'black']
 
     axes1, axes2,  axes4 = ax[0][2], ax[1][2], ax[2][2]
     for axes in ax.flatten():
         axes.vlines(0, 0, 1, transform=axes.get_xaxis_transform(), color='black', alpha=0.5, linewidth=0.5)
         
-    raster_1 = raster.loc[(raster[condition] == 0)&(raster['has_choice']==1)]
-    raster_2 = raster.loc[(raster[condition] != 0)&(raster['has_choice']==1)]
+    raster_1 = raster.loc[(raster[condition] == 0)&(raster['is_choice']==1)]
+    raster_2 = raster.loc[(raster[condition] != 0)&(raster['is_choice']==1)]
     color1 = colors[1]
     color2 = colors[0]
 
     plot_sniff_raster_simple(raster_1, axes1, axes2, color = color1)
     plot_sniff_raster_simple(raster_2, axes1, axes2, color = color2, max_trial = raster_1.total_sites.nunique()+5)
 
-    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] == 0)&(frequency_troughs['has_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
-    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] != 0)&(frequency_troughs['has_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
+    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] == 0)&(frequency_troughs['is_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
+    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] != 0)&(frequency_troughs['is_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
     # axes3.set_ylabel('Frequency (Hz)')
 
-    sns.lineplot(data=velocity.loc[(velocity[condition] == 0)&(velocity['has_choice']==1)], x='times', y='speed', ax=axes4, color=colors[0], errorbar='sd', legend=False, label='Visit 1')
-    sns.lineplot(data=velocity.loc[(velocity[condition] != 0)&(velocity['has_choice']==1)], x='times', y='speed', ax=axes4, color=colors[1], errorbar='sd', legend=False, 
+    sns.lineplot(data=velocity.loc[(velocity[condition] == 0)&(velocity['is_choice']==1)], x='times', y='speed', ax=axes4, color=colors[0], errorbar='sd', legend=False, label='Visit 1')
+    sns.lineplot(data=velocity.loc[(velocity[condition] != 0)&(velocity['is_choice']==1)], x='times', y='speed', ax=axes4, color=colors[1], errorbar='sd', legend=False, 
                  label='Other visits')
     axes4.set_xlabel('Time from odor onset (s)')
     axes4.set_ylabel('Velocity (cm/s)')
     axes4.legend(loc='upper right')
     axes1.set_title('Stopped - Visit number')
     
-    condition = 'visit_number'
+    condition = 'site_number'
     colors = ['grey', 'black']
 
     axes1, axes2, axes4 = ax[0][3], ax[1][3], ax[2][3]
     for axes in ax.flatten():
         axes.vlines(0, 0, 1, transform=axes.get_xaxis_transform(), color='black', alpha=0.5, linewidth=0.5)
         
-    raster_1 = raster.loc[(raster[condition] == 0)&(raster['has_choice']==0)]
-    raster_2 = raster.loc[(raster[condition] != 0)&(raster['has_choice']==0)]
+    raster_1 = raster.loc[(raster[condition] == 0)&(raster['is_choice']==0)]
+    raster_2 = raster.loc[(raster[condition] != 0)&(raster['is_choice']==0)]
     color1 = colors[1]
     color2 = colors[0]
 
     plot_sniff_raster_simple(raster_1, axes1, axes2, color = color1)
     plot_sniff_raster_simple(raster_2, axes1, axes2, color = color2, max_trial = raster_1.total_sites.nunique()+5)
 
-    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] == 0)&(frequency_troughs['has_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
-    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] != 0)&(frequency_troughs['has_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
+    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] == 0)&(frequency_troughs['is_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
+    # sns.lineplot(data=frequency_troughs.loc[(frequency_troughs[condition] != 0)&(frequency_troughs['is_choice']==0)], x='times', y='instantaneous_frequency', ax=axes3, palette= colors, legend=False)
     # axes3.set_ylabel('Frequency (Hz)')
 
-    sns.lineplot(data=velocity.loc[(velocity[condition] == 0)&(velocity['has_choice']==0)], x='times', y='speed', ax=axes4, color=colors[0], errorbar='sd', legend=False, label='Visit 1')
-    sns.lineplot(data=velocity.loc[(velocity[condition] != 0)&(velocity['has_choice']==0)], x='times', y='speed', ax=axes4, color=colors[1], errorbar='sd', legend=False, 
+    sns.lineplot(data=velocity.loc[(velocity[condition] == 0)&(velocity['is_choice']==0)], x='times', y='speed', ax=axes4, color=colors[0], errorbar='sd', legend=False, label='Visit 1')
+    sns.lineplot(data=velocity.loc[(velocity[condition] != 0)&(velocity['is_choice']==0)], x='times', y='speed', ax=axes4, color=colors[1], errorbar='sd', legend=False, 
                  label='Last visit')
 
     axes4.set_xlabel('Time from odor onset (s)')
@@ -406,7 +406,7 @@ def plot_sniff_raster_conditioned(raster,
 def plot_sniff_raster_odor_conditioned(raster, 
                                   velocity, 
                                   save = False):
-    condition = 'has_choice'
+    condition = 'is_choice'
     colors = ['steelblue', 'black', 'crimson',  'orangered']
 
     fig, ax = plt.subplots(3,3, figsize=(14, 12), sharex=True, gridspec_kw={'height_ratios': [2, 1, 1]})
@@ -416,10 +416,10 @@ def plot_sniff_raster_odor_conditioned(raster,
     for i, odor_label in enumerate(raster.odor_label.unique()):
         axes1, axes2, axes4 = ax[0][i], ax[1][i], ax[2][i]
             
-        raster_1 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 1)&(raster['visit_number'] == 0)]
-        raster_2 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 1)&(raster['visit_number'] != 0)]
-        raster_3 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 0)&(raster['visit_number'] == 0)]
-        raster_4 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 0)&(raster['visit_number'] != 0)]
+        raster_1 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 1)&(raster['site_number'] == 0)]
+        raster_2 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 1)&(raster['site_number'] != 0)]
+        raster_3 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 0)&(raster['site_number'] == 0)]
+        raster_4 = raster.loc[(raster['odor_label'] == odor_label)&(raster[condition] == 0)&(raster['site_number'] != 0)]
         
         color1 = colors[0]
         color2 = colors[1]
@@ -438,8 +438,8 @@ def plot_sniff_raster_odor_conditioned(raster,
         plot_sniff_raster_simple(raster_4, axes1, axes2, color = color4, max_trial = running_max_trial)
 
         axes2.set_ylim(0, 10)
-        sns.lineplot(data=velocity.loc[(velocity.odor_label == odor_label)&(velocity['visit_number'] == 0)], x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= {0: color3, 1: color1})
-        sns.lineplot(data=velocity.loc[(velocity.odor_label == odor_label)&(velocity['visit_number'] != 0)], x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= {0: color4, 1: color2})
+        sns.lineplot(data=velocity.loc[(velocity.odor_label == odor_label)&(velocity['site_number'] == 0)], x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= {0: color3, 1: color1})
+        sns.lineplot(data=velocity.loc[(velocity.odor_label == odor_label)&(velocity['site_number'] != 0)], x='times', y='speed', hue=condition, ax=axes4, errorbar='sd', palette= {0: color4, 1: color2})
         axes4.set_xlabel('Time from odor onset (s)')
         axes4.set_ylabel('Velocity (cm/s)')
         
@@ -470,7 +470,7 @@ def plot_sniff_raster_odor_conditioned(raster,
 
 def plot_sniff_raster_conditioned_simple(raster, 
                                   velocity,
-                                  condition = 'has_choice',
+                                  condition = 'is_choice',
                                   condition_values = [1, 0],
                                   colors = ['crimson', 'steelblue'],
                                   all_axes = None,
@@ -501,7 +501,7 @@ def plot_sniff_raster_conditioned_simple(raster,
     axes4.legend(loc='upper right')
     axes4.set_xlim(window)
     
-    if condition == 'has_choice':
+    if condition == 'is_choice':
         axes4.fill_between((velocity.odor_to_stop.min(), velocity.odor_to_stop.quantile(0.5)), -10, 60, color='grey', alpha=0.1)
         axes1.fill_between((velocity.odor_to_stop.min(), velocity.odor_to_stop.quantile(0.5)), -1, raster.total_sites.max(), color='grey', alpha=0.1)
         axes2.fill_between((velocity.odor_to_stop.min(), velocity.odor_to_stop.quantile(0.5)), -2, 8, color='grey', alpha=0.1)

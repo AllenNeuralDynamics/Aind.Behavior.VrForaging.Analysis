@@ -27,6 +27,22 @@ _payloadtypes = {
 from datetime import datetime
 import pytz
 
+def parse_user_date(user_date_str):
+    """
+    Parses a user-provided date string in the format 'YYYY-MM-DD' and returns a datetime.date object.
+
+    Parameters:
+    user_date_str (str): A string representing a date in the format 'YYYY-MM-DD'.
+
+    Returns:
+    datetime.date: The parsed date if the format is valid.
+    None: If the input format is incorrect.
+    """
+    try:
+        return datetime.strptime(user_date_str, "%Y-%m-%d").date()  # Convert user input to date
+    except ValueError:
+        return None
+
 def extract_and_convert_time(filename):
     seattle_tz = pytz.timezone('America/Los_Angeles')
 
@@ -71,20 +87,26 @@ class TaskSchemaProperties:
             self.tasklogic = "tasklogic_input"
 
         self._data["config"].streams[self.tasklogic].load_from_file()
-
-        if (
-            "environment_statistics" in self._data["config"].streams[self.tasklogic].data
-            or "task_parameters" in self._data["config"].streams[self.tasklogic].data
-        ):
-            self.environment = "environment_statistics"
+        version = Version(self._data["config"].streams[self.tasklogic].data["version"])
+        
+        if version >= Version("0.5.1"):
+            self.environment = "environment"
             self.reward_specification = "reward_specification"
             self.odor_specifications = "odor_specification"
             self.odor_index = "index"
-        else:
-            self.environment = "environmentStatistics"
-            self.reward_specification = "rewardSpecifications"
-            self.odor_specifications = "odorSpecifications"
-            self.odor_index = "odorIndex"
+            
+        # if (
+        #     "environment_statistics" in self._data["config"].streams[self.tasklogic].data
+        # ):
+        self.environment = "environment_statistics"
+        self.reward_specification = "reward_specification"
+        self.odor_specifications = "odor_specification"
+        self.odor_index = "index"
+        # else:
+        #     self.environment = "environmentStatistics"
+        #     self.reward_specification = "rewardSpecifications"
+        #     self.odor_specifications = "odorSpecifications"
+        #     self.odor_index = "odorIndex"
 
         if "task_parameters" in self._data["config"].streams[self.tasklogic].data:
             self.patches = (
@@ -117,12 +139,12 @@ class ContinuousData:
 
         if load_continuous == True:
             self.encoder_data = self.encoder_loading()
-            self.choice_feedback = self.choice_feedback_loading()
-            self.lick_onset, self.lick_offset = self.lick_onset_loading()
-            self.give_reward, self.pulse_duration = self.water_valve_loading()
-            # self.succesful_wait = self.succesfull_wait_loading()
-            self.sniff_data_loading()
-            self.odor_triggers = odor_data_harp_olfactometer(self.data)
+            # self.choice_feedback = self.choice_feedback_loading()
+            # self.lick_onset, self.lick_offset = self.lick_onset_loading()
+            # self.give_reward, self.pulse_duration = self.water_valve_loading()
+            # # self.succesful_wait = self.succesfull_wait_loading()
+            # self.sniff_data_loading()
+            # self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def encoder_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
@@ -306,13 +328,13 @@ class RewardFunctions:
 
         for index, row in self.reward_sites.iterrows():
             # Total number of rewards in the current patch ( accumulated)
-            if row["active_patch"] != previous_patch:
-                previous_patch = row["active_patch"]
+            if row["patch_number"] != previous_patch:
+                previous_patch = row["patch_number"]
                 cumulative_rewards = 0
 
             self.reward_sites.loc[index, "cumulative_rewards"] = cumulative_rewards
 
-            if row["reward_delivered"] != 0:
+            if row["is_reward"] != 0:
                 cumulative_rewards += 1
 
     def reward_amount(self):
@@ -712,12 +734,8 @@ def load_session_data(
     if "config.json" in os.listdir(session_path_config):
         with open(str(session_path_config) + "\config.json", "r") as json_file:
             _out_dict["config"] = json.load(json_file)
-    elif "Config" in os.listdir(session_path_config):
-        _out_dict["config"] = data_io.ConfigSource(path=session_path_config / "Config", name="config", autoload=True)
-        _out_dict["endsession"] = data_io.ConfigSource(path=session_path_config, name="config", autoload=True).streams['endsession']
     elif "Logs" in os.listdir(session_path_behavior):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
-        _out_dict["endsession"] = _out_dict["config"].streams["endsession"]
 
     return _out_dict
 
@@ -899,12 +917,12 @@ def parse_data_old(data, path):
     # Concatenate the normalized DataFrame with the original DataFrame
     active_site = pd.concat([active_site, df_normalized], axis=1)
 
-    active_site["label"] = np.where(active_site["label"] == "Reward", "RewardSite", active_site["label"])
+    active_site["label"] = np.where(active_site["label"] == "Reward", "OdorSite", active_site["label"])
     active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
     # Rename columns
 
     active_site = active_site[["label", "start_position", "length"]]
-    reward_sites = active_site[active_site["label"] == "RewardSite"]
+    reward_sites = active_site[active_site["label"] == "OdorSite"]
 
     data["software_events"].streams.GiveReward.load_from_file()
     reward = data["software_events"].streams.GiveReward.data
@@ -955,25 +973,25 @@ def parse_data_old(data, path):
     data["software_events"].streams.ChoiceFeedback.load_from_file()
     choiceFeedback = data["software_events"].streams.ChoiceFeedback.data
 
-    reward_sites.loc[:, "active_patch"] = -1
-    reward_sites.loc[:, "visit_number"] = -1
-    reward_sites.loc[:, "has_choice"] = False
-    reward_sites.loc[:, "reward_delivered"] = 0
+    reward_sites.loc[:, "patch_number"] = -1
+    reward_sites.loc[:, "site_number"] = -1
+    reward_sites.loc[:, "is_choice"] = False
+    reward_sites.loc[:, "is_reward"] = 0
     reward_sites.loc[:, "past_no_reward_count"] = 0
     past_no_reward_counter = 0
     current_patch_idx = -1
 
-    visit_number = 0
+    site_number = 0
     for idx, event in enumerate(reward_sites.iterrows()):
         arg_min, val_min = processing.find_closest(event[0], patches.index.values, mode="below_zero")
         if not (np.isnan(arg_min)):
-            reward_sites.loc[event[0], "active_patch"] = arg_min
+            reward_sites.loc[event[0], "patch_number"] = arg_min
         if current_patch_idx != arg_min:
             current_patch_idx = arg_min
-            visit_number = 0
+            site_number = 0
         else:
-            visit_number += 1
-        reward_sites.loc[event[0], "visit_number"] = visit_number
+            site_number += 1
+        reward_sites.loc[event[0], "site_number"] = site_number
 
         if idx < len(reward_sites) - 1:
             choice = choiceFeedback.loc[
@@ -985,12 +1003,12 @@ def parse_data_old(data, path):
         else:
             choice = choiceFeedback.loc[(choiceFeedback.index >= reward_sites.index[idx])]
             reward_in_site = reward.loc[(reward.index >= reward_sites.index[idx])]
-        reward_sites.loc[event[0], "has_choice"] = len(choice) > 0
-        reward_sites.loc[event[0], "reward_delivered"] = (
+        reward_sites.loc[event[0], "is_choice"] = len(choice) > 0
+        reward_sites.loc[event[0], "is_reward"] = (
             reward_in_site.iloc[0]["data"] if len(reward_in_site) > 0 else 0
         )
         reward_sites.loc[event[0], "past_no_reward_count"] = past_no_reward_counter
-        if reward_sites.loc[event[0], "reward_delivered"] == 0 and reward_sites.loc[event[0], "has_choice"] == 1:
+        if reward_sites.loc[event[0], "is_reward"] == 0 and reward_sites.loc[event[0], "is_choice"] == 1:
             past_no_reward_counter += 1
         else:
             past_no_reward_counter = 0
@@ -999,7 +1017,7 @@ def parse_data_old(data, path):
         df_patch.reset_index(inplace=True)
         df_patch.rename(
             columns={
-                "index": "active_patch",
+                "index": "patch_number",
                 "label": "odor_label",
                 "rewardSpecifications.amount": "amount",
             },
@@ -1010,15 +1028,15 @@ def parse_data_old(data, path):
             inplace=True,
         )
     except:
-        df_patch = pd.DataFrame(columns=["active_patch", "odor_label", "amount"])
-        df_patch["active_patch"] = np.arange(len(patches))
+        df_patch = pd.DataFrame(columns=["patch_number", "odor_label", "amount"])
+        df_patch["patch_number"] = np.arange(len(patches))
         df_patch["odor_label"] = config["environmentStatistics"]["patches"][0]["label"]
         df_patch["amount"] = config["environmentStatistics"]["patches"][0]["rewardSpecifications"]["amount"]
 
     reward_sites = pd.merge(
         reward_sites.reset_index(),
-        df_patch[["odor_label", "active_patch", "amount"]],
-        on="active_patch",
+        df_patch[["odor_label", "patch_number", "amount"]],
+        on="patch_number",
     )
 
     # Create new column for adjusted seconds to start of session
@@ -1030,7 +1048,7 @@ def parse_data_old(data, path):
     data["harp_behavior"].streams.OutputSet.load_from_file()
     water = data["harp_behavior"].streams.OutputSet.data[["SupplyPort0"]]
     reward_sites["next_index"] = reward_sites.index.to_series().shift(-1)
-    reward_sites["water_onset"] = None
+    reward_sites["reward_onset"] = None
 
     # Iterate through the actual index of df1
     for value in water.index:
@@ -1040,7 +1058,7 @@ def parse_data_old(data, path):
         # If a matching row is found, update the corresponding row in water with the index value
         if not matching_row.empty:
             matching_index = matching_row.index[0]  # Assuming there's at most one matching row
-            reward_sites.at[matching_index, "water_onset"] = value
+            reward_sites.at[matching_index, "reward_onset"] = value
 
     # ---------------------------------------------------- #
 
@@ -1094,18 +1112,18 @@ def parse_data_old(data, path):
     # Add colum for site number
     reward_sites.loc[:, "odor_sites"] = np.arange(len(reward_sites))
     reward_sites.loc[:, "depleted"] = np.where(reward_sites["reward_available"] == 0, 1, 0)
-    reward_sites.loc[:, "collected"] = np.where((reward_sites["reward_delivered"] != 0), 1, 0)
+    reward_sites.loc[:, "collected"] = np.where((reward_sites["is_reward"] != 0), 1, 0)
 
-    # reward_sites['next_visit_number'] = reward_sites['visit_number'].shift(-2)
-    # reward_sites['last_visit'] = np.where(reward_sites['next_visit_number']==0, 1, 0)
-    # reward_sites.drop(columns=['next_visit_number'], inplace=True)
+    # reward_sites['next_site_number'] = reward_sites['site_number'].shift(-2)
+    # reward_sites['last_visit'] = np.where(reward_sites['next_site_number']==0, 1, 0)
+    # reward_sites.drop(columns=['next_site_number'], inplace=True)
 
-    # reward_sites['last_site'] = reward_sites['visit_number'].shift(-1)
+    # reward_sites['last_site'] = reward_sites['site_number'].shift(-1)
     # reward_sites['last_site'] = np.where(reward_sites['last_site'] == 0, 1,0)
 
-    # reward_sites['next_patch'] = reward_sites['active_patch'].shift(1)
+    # reward_sites['next_patch'] = reward_sites['patch_number'].shift(1)
     # reward_sites['next_odor'] = reward_sites['odor_label'].shift(1)
-    # reward_sites['same_patch'] = np.where((reward_sites['next_patch'] != reward_sites['active_patch'])&(reward_sites['odor_label'] == reward_sites['next_odor'] ), 1, 0)
+    # reward_sites['same_patch'] = np.where((reward_sites['next_patch'] != reward_sites['patch_number'])&(reward_sites['odor_label'] == reward_sites['next_odor'] ), 1, 0)
     # reward_sites.drop(columns=['next_patch', 'next_odor'], inplace=True)
 
     encoder_data = processing.fir_filter(encoder_data, "velocity", cutoff_hz=5)
@@ -1143,7 +1161,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     )
     active_site.drop(columns=["previous_epoch"], inplace=True)
 
-    active_site["label"].replace("Reward", "RewardSite", inplace=True)
+    active_site["label"].replace("Reward", "OdorSite", inplace=True)
+    active_site["label"].replace("RewardSite", "OdorSite", inplace=True)
 
     if "treadmill_specification.friction.distribution_parameters.value" in active_site.columns:
         active_site.rename(
@@ -1160,9 +1179,9 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         active_site.rename(columns={"startPosition": "start_position"}, inplace=True)
         active_site = active_site[["label", "start_position", "length"]]
 
-    # Add active_patch column
+    # Add patch_number column
     group = (active_site["label"] == "InterPatch").cumsum()
-    active_site["active_patch"] = group - 1
+    active_site["patch_number"] = group - 1
 
     # Patch initialization
     data["software_events"].streams.ActivePatch.load_from_file()
@@ -1170,16 +1189,16 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     df_patch = pd.json_normalize(patches["data"])
     df_patch.index = patches.index
 
-    df_patch["active_patch"] = np.arange(len(df_patch))
+    df_patch["patch_number"] = np.arange(len(df_patch))
     if "odor_specification.index" in df_patch.columns:
         df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label"}, inplace=True)
-        df_patch = df_patch[["patch_label", "active_patch", "odor_label"]]
+        df_patch = df_patch[["patch_label", "patch_number", "odor_label"]]
     else: 
         df_patch.rename(columns={"label": "odor_label"}, inplace=True)
-        df_patch = df_patch[["active_patch", "odor_label"]]
+        df_patch = df_patch[["patch_number", "odor_label"]]
         df_patch["patch_label"] = df_patch["odor_label"]
         
-    all_epochs = pd.merge(active_site, df_patch, on="active_patch", how="left")
+    all_epochs = pd.merge(active_site, df_patch, on="patch_number", how="left")
     all_epochs.index = active_site.index
     
 # ------------
@@ -1197,13 +1216,13 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         all_epochs["odor_label"] = all_epochs['patch_label']
 # ----------------
 
-    # Count 'RewardSite' occurrences within each group
-    all_epochs["visit_number"] = all_epochs[all_epochs["label"] == "RewardSite"].groupby(group).cumcount()
-    all_epochs["END"] = all_epochs.index.to_series().shift(-1)
-    all_epochs.index.name = "START"
+    # Count 'OdorSite' occurrences within each group
+    all_epochs["site_number"] = all_epochs[all_epochs["label"] == "OdorSite"].groupby(group).cumcount()
+    all_epochs["stop_time"] = all_epochs.index.to_series().shift(-1)
+    all_epochs.index.name = "start_time"
 
     ## Add last timestamp
-    all_epochs.END.iloc[-1] = data['endsession'].data['timestamp']    
+    all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
     
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
@@ -1227,11 +1246,10 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     # Create an empty list to hold the results
     stop_cues = []
-    water_onsets = []
+    reward_onsets = []
     successful_waits = []
 
-    reward_sites = all_epochs[all_epochs["label"] == "RewardSite"]
-
+    reward_sites = all_epochs[all_epochs["label"] == "OdorSite"]
     if reward_sites.empty:
         print("No reward sites found")
         return all_epochs
@@ -1239,7 +1257,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     # Loop over the reward_sites
     for current_idx, row in reward_sites.iterrows():
         # Define the current and next reward site index
-        next_idx = row.END
+        next_idx = row.stop_time
         
         # Find slices based on the current and next indices
         choice = choiceFeedback[(choiceFeedback.index >= current_idx) & (choiceFeedback.index < next_idx)]
@@ -1248,32 +1266,40 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
         # Store the first relevant index or NaN
         stop_cues.append(choice.index[0] if len(choice) > 0 else np.nan)
-        water_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
+        reward_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
         successful_waits.append(waits.index[0] if len(waits) > 0 else np.nan)
 
     # Assign the results to the DataFrame
-    reward_sites["stop_cue"] = stop_cues
-    reward_sites["water_onset"] = water_onsets
-    reward_sites["succesful_wait"] = successful_waits
+    reward_sites["choice_cue_time"] = stop_cues
+    reward_sites["reward_onset_time"] = reward_onsets
+    reward_sites["succesful_wait_time"] = successful_waits
 
     # Add the new columns for choice and reward delivered
-    reward_sites["has_choice"] = reward_sites["stop_cue"].notnull().astype(int)
-    reward_sites["reward_delivered"] = reward_sites["water_onset"].notnull().astype(int)
+    reward_sites["is_choice"] = reward_sites["choice_cue_time"].notnull().astype(bool)
+    reward_sites["is_reward"] = reward_sites["reward_onset_time"].notnull().astype(bool)
 
-    schema_properties = TaskSchemaProperties(data)
-    if 'reward_specification' in schema_properties.patches[0]:
-        if schema_properties.patches[0]['reward_specification'] != None:
-            reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
-    else:
-        reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+    # Add the reward characteristics columns
+    patch_stats = pd.DataFrame()
+    patch_stats.index = data['software_events'].streams.PatchRewardProbability.data.index
+    patch_stats['reward_amount'] = data['software_events'].streams.PatchRewardAmount.data['data'].values
+    patch_stats['reward_available'] = data['software_events'].streams.PatchRewardAvailable.data['data'].values
+    patch_stats['reward_probability'] = data['software_events'].streams.PatchRewardProbability.data['data'].values
+    patch_stats['reward_probability'] = patch_stats['reward_probability'].round(3)
 
+    # Find closest smaller index in patch_stats for each index in reward_sites
+    reward_sites['closest_index'] = reward_sites.index.to_series().apply(lambda x: patch_stats.index[patch_stats.index <= x].max())
+
+    # Merge on closest index
+    merged = reward_sites.merge(patch_stats, left_on='closest_index', right_index=True, how='left')
+
+    assert len(merged) == len(reward_sites), "Length mismatch after merge"
+    
     # Concatenate the results to all_epochs
-    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'RewardSite'], reward_sites], axis=0)
+    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged.drop(columns=['closest_index'])], axis=0)
 
     # Sort the index
     all_epochs.sort_index(inplace=True)
 
     return all_epochs
-
 
 ## ------------------------------------------------------------------------- ##
