@@ -863,8 +863,6 @@ def summary_withinsession_values(reward_sites,
 def trial_collection(
     reward_sites: pd.DataFrame,
     continuous_data: pd.DataFrame,
-    mouse: str,
-    session: str,
     aligned: str = 'index',
     cropped_to_length: bool = False,
     window: list = [-0.5, 2],
@@ -912,6 +910,7 @@ def trial_collection(
             window[0] = row['time_since_entry']
             window[1] = row['exit_epoch']
         elif cropped_to_length == 'epoch':
+            window[0] = 0
             window[1] = row['epoch_duration']
             
         trial_average = pd.DataFrame()
@@ -964,8 +963,6 @@ def trial_collection(
         
         trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
 
-    trial_summary["mouse"] = mouse
-    trial_summary["session"] = session
     return trial_summary
 
 
