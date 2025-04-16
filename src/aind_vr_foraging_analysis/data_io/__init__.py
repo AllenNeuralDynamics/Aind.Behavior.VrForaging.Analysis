@@ -5,7 +5,6 @@ from enum import Enum
 from os import PathLike
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
-
 import pandas as pd
 import requests
 from dotmap import DotMap

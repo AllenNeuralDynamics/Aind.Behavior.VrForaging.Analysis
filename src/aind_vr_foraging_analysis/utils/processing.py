@@ -90,6 +90,7 @@ def compute_window(data, runningwindow, option, trial):
 ## ------------------------------------------------------------------------- ##
 
 
+
 def choose_cut(reward_sites: pd.DataFrame, number_skipped: int = 20):
     """
     Choose the cut of the session based on the number of skipped sites

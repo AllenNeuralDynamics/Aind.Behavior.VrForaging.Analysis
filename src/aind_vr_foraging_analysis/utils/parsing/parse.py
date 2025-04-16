@@ -60,6 +60,7 @@ def extract_and_convert_time(filename):
     except ValueError:
         return "Invalid filename format"
 
+
 class TaskSchemaProperties:
     """This class is used to store the schema properties of the task configuration.
 
@@ -114,8 +115,6 @@ class TaskSchemaProperties:
             )
         else:
             self.patches = self._data["config"].streams[self.tasklogic].data[self.environment]["patches"]
-
-
 class ContinuousData:
     def __init__(self, data, load_continuous: bool = True):
 
@@ -286,7 +285,6 @@ class ContinuousData:
             )
             self.breathing["data"] = self.data["harp_behavior"].streams.AnalogData.data["AnalogInput0"].values
         return self.breathing
-
 
 class RewardFunctions:
     """
@@ -533,7 +531,6 @@ class RewardFunctions:
 
         return self.reward_sites
 
-
 def read_harp_bin(file):
     """
     Reads binary data from a HARP file and returns it as a pandas DataFrame.
@@ -580,7 +577,6 @@ def read_harp_bin(file):
         ret_pd.index.names = ["Seconds"]
 
     return ret_pd
-
 
 ## ------------------------------------------------------------------------- ##
 def load_session_data(
@@ -732,13 +728,12 @@ def load_session_data(
 
     # Load config old version
     if "config.json" in os.listdir(session_path_config):
-        with open(str(session_path_config) + "\config.json", "r") as json_file:
+        with open(str(session_path_config) + r"\config.json", "r") as json_file:
             _out_dict["config"] = json.load(json_file)
     elif "Logs" in os.listdir(session_path_behavior):
         _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
 
     return _out_dict
-
 
 ## ------------------------------------------------------------------------- ##
 def odor_data_harp_olfactometer(data):
@@ -879,15 +874,15 @@ def parse_data_old(data, path):
         encoder_data = data["harp_behavior"].streams.AnalogData.data
     except:
         encoder_data = pd.DataFrame()
-        encoder_data["Encoder"] = read_harp_bin(path + "\Behavior\Register__44" + ".bin")[1]
+        encoder_data["Encoder"] = read_harp_bin(path + r"\Behavior\Register__44" + ".bin")[1]
 
     try:
         # Open and read the JSON file
-        with open(str(path) + "\Config\TaskLogic.json", "r") as json_file:
+        with open(str(path) + r"\Config\TaskLogic.json", "r") as json_file:
             config = json.load(json_file)
 
     except:
-        with open(str(path) + "\config.json", "r") as json_file:
+        with open(str(path) + r"\config.json", "r") as json_file:
             config = json.load(json_file)
 
     try:
@@ -1186,6 +1181,14 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     # Patch initialization
     data["software_events"].streams.ActivePatch.load_from_file()
     patches = data["software_events"].streams.ActivePatch.data
+
+    # Instances where a patch gets defined but it's not really used. Happens during block transitions. 
+    merged = pd.concat([patches, active_site])
+    merged.sort_index(inplace=True)
+    merged['consecutive_active_patch'] = (merged['name'] == 'ActivePatch') & (merged['name'].shift(-1) == 'ActivePatch')
+    indexes_to_remove = merged.loc[merged['consecutive_active_patch'] == True].index
+    patches = patches.drop(index=indexes_to_remove)
+
     df_patch = pd.json_normalize(patches["data"])
     df_patch.index = patches.index
 
@@ -1221,9 +1224,12 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     all_epochs["stop_time"] = all_epochs.index.to_series().shift(-1)
     all_epochs.index.name = "start_time"
 
-    ## Add last timestamp
-    all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
-    
+    # ## Add last timestamp
+    # if "endsession" in data["config"].streams:
+    #     all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
+    # else:
+    #     all_epochs = all_epochs.iloc[-1]
+        
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
 
@@ -1285,21 +1291,30 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     patch_stats['reward_available'] = data['software_events'].streams.PatchRewardAvailable.data['data'].values
     patch_stats['reward_probability'] = data['software_events'].streams.PatchRewardProbability.data['data'].values
     patch_stats['reward_probability'] = patch_stats['reward_probability'].round(3)
+    try:
+        patch_stats.drop(index=indexes_to_remove, inplace=True)    
+    except:
+        print(indexes_to_remove)
+        pass
+    
+    # Make sure both DataFrames are sorted by index
+    reward_sites = reward_sites.sort_index()
+    patch_stats = patch_stats.sort_index()
 
-    # Find closest smaller index in patch_stats for each index in reward_sites
-    reward_sites['closest_index'] = reward_sites.index.to_series().apply(lambda x: patch_stats.index[patch_stats.index <= x].max())
-
-    # Merge on closest index
-    merged = reward_sites.merge(patch_stats, left_on='closest_index', right_index=True, how='left')
+    # Perform merge_asof on the index
+    merged = pd.merge_asof(
+        reward_sites,
+        patch_stats,
+        left_index=True,
+        right_index=True,
+        direction='backward'
+    )
 
     assert len(merged) == len(reward_sites), "Length mismatch after merge"
     
     # Concatenate the results to all_epochs
-    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged.drop(columns=['closest_index'])], axis=0)
+    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0)
 
-    # Sort the index
-    all_epochs.sort_index(inplace=True)
-
-    return all_epochs
+    return all_epochs.sort_index(inplace=True)
 
 ## ------------------------------------------------------------------------- ##

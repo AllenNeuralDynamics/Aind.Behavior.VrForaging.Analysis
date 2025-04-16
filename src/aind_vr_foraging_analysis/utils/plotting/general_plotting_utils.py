@@ -271,46 +271,47 @@ def segmented_raster_vertical(
     odors.extend([label_2, label_3, label_6, label_4, label_5])
     ax1.set_ylim(-1, max(reward_sites.site_number) + 1)
 
-    if len(reward_sites["odor_label"].unique()) != 1 and len(reward_sites["odor_label"].unique()) != 2:
-        ax2 = plt.subplot(gs[1, 0])
-        ax3 = plt.subplot(gs[1, 1])
-        ax4 = plt.subplot(gs[1, 2])
-        for ax, odor_label in zip([ax2, ax3, ax4], reward_sites.odor_label.unique()):
-            selected_sites = reward_sites.loc[reward_sites.odor_label == odor_label]
-            previous_active = 0
-            value = 0
-            for index, row in selected_sites.iterrows():
-                # Choose the color of the site
-                if row["is_reward"] == 1 and row["is_choice"] == True:
-                    color = "steelblue"
-                elif row["is_reward"] == 0 and row["is_choice"] == True:
-                    color = "pink"
-                    if row["reward_available"] == 0:
-                        color = "crimson"
+    # Create subplots dynamically in the bottom row (row index 1)
+    unique_patches = reward_sites["odor_label"].unique()
+    axes = [plt.subplot(gs[1, i]) for i in range(number_odors)]
+
+    # Now loop over each odor and axis
+    for ax, odor_label in zip(axes, unique_patches):
+        selected_sites = reward_sites.loc[reward_sites.odor_label == odor_label]
+        previous_active = 0
+        value = 0
+        for index, row in selected_sites.iterrows():
+            # Choose the color of the site
+            if row["is_reward"] == 1 and row["is_choice"] == True:
+                color = "steelblue"
+            elif row["is_reward"] == 0 and row["is_choice"] == True:
+                color = "pink"
+                if row["reward_available"] == 0:
+                    color = "crimson"
+            else:
+                if row["reward_available"] == 0:
+                    color = "black"
                 else:
-                    if row["reward_available"] == 0:
-                        color = "black"
-                    else:
-                        color = "lightgrey"
+                    color = "lightgrey"
 
-                ax.set_title(odor_label, color=color_dict_label[row["odor_label"]])
+            ax.set_title(odor_label, color=color_dict_label[row["odor_label"]])
 
-                if row["patch_number"] != previous_active:
-                    value += 1
-                    previous_active = row["patch_number"]
-                ax.bar(
-                    value,
-                    bottom=row["site_number"],
-                    height=1,
-                    width=1,
-                    color=color,
-                    edgecolor="darkgrey",
-                    linewidth=0.5,
-                )
-                ax.set_xlim(-1, selected_sites.patch_number.nunique() + 1)
-                ax.set_ylim(-0.5, reward_sites.site_number.max() + 1)
-                ax.set_ylabel("Site number")
-                ax.set_xlabel("Patch number")
+            if row["patch_number"] != previous_active:
+                value += 1
+                previous_active = row["patch_number"]
+            ax.bar(
+                value,
+                bottom=row["site_number"],
+                height=1,
+                width=1,
+                color=color,
+                edgecolor="darkgrey",
+                linewidth=0.5,
+            )
+            ax.set_xlim(-1, selected_sites.patch_number.nunique() + 1)
+            ax.set_ylim(-0.5, reward_sites.site_number.max() + 1)
+            ax.set_ylabel("Site number")
+            ax.set_xlabel("Patch number")
 
     fig.tight_layout()
     plt.legend(handles=odors, loc='best', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=1)
@@ -864,7 +865,7 @@ def trial_collection(
     reward_sites: pd.DataFrame,
     continuous_data: pd.DataFrame,
     aligned: str = 'index',
-    cropped_to_length: bool = False,
+    cropped_to_length: str = 'window',
     window: list = [-0.5, 2],
     taken_col: str = "filtered_velocity",
     continuous: bool = True,
@@ -906,12 +907,14 @@ def trial_collection(
             # window[1] = row['odor_duration']
             window[0] = 0
             window[1] = row['next_index'] - start_reward   
-        elif cropped_to_length == 'raster':    
+        elif cropped_to_length == 'patch':    
             window[0] = row['time_since_entry']
             window[1] = row['exit_epoch']
         elif cropped_to_length == 'epoch':
             window[0] = 0
             window[1] = row['epoch_duration']
+        else:
+            pass
             
         trial_average = pd.DataFrame()
         if aligned != 'index':
@@ -976,41 +979,25 @@ def raster_with_velocity(
         "Amyl Acetate": "#7570b3",
     },
 ):
-
-    patch_number = -1
-    first_entry = True
-    patch_onset = pd.DataFrame()
-    for index, row in active_site.iterrows():
-        if row['label'] == 'InterSite' and patch_number == row['patch_number'] and first_entry:
-            new_rows = pd.DataFrame([
-            {'patch_number': row['patch_number'], 'patch_onset': row.name}])
-            patch_onset = pd.concat([patch_onset, new_rows])
-            first_entry = False
-            
-        if patch_number != row['patch_number']:
-            patch_number = row['patch_number']
-            first_entry = True
-    
-    merged_df = pd.merge_asof(active_site, patch_onset, on='patch_number')
-    active_site['patch_onset'] = merged_df['patch_onset'].values
-    active_site['time_since_entry'] = active_site.index - active_site['patch_onset']
-    active_site['exit_epoch'] = active_site['time_since_entry'] + active_site['duration_epoch']
+        
     test_df = active_site.groupby('patch_number').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
     
-    print(stream_data.encoder_data)
-    trial_summary = trial_collection(test_df, stream_data.encoder_data, active_site.mouse.unique()[0], active_site.session.unique()[0], aligned='patch_onset', cropped_to_length=True)
-
-    fig, ax1 = plt.subplots(figsize=(14, 30))
+    trial_summary = trial_collection(test_df, stream_data.encoder_data, aligned='patch_onset', cropped_to_length='patch')
+    n_patches = active_site.patch_number.nunique()
+    n_max_stops = active_site.site_number.max() + 1
+    fig, ax1 = plt.subplots(figsize=(15+ n_max_stops/2, n_patches/2))
     ax2 = ax1.twinx()
-    print(trial_summary.columns)
+
     max_speed = np.quantile(trial_summary['speed'],0.99)
     for index, row in active_site.iterrows():
         if row['label'] == 'InterPatch':
             color = '#b3b3b3'
         elif row['label'] == 'InterSite':
             color = '#808080'
+        elif row['label'] == 'PostPatch':
+            color = '#b3b3b3'
             
         if row['label'] == 'OdorSite':
             if row['site_number'] == 0:
@@ -1039,9 +1026,9 @@ def raster_with_velocity(
         time_left = -50
     else:
         time_left = active_site.groupby('patch_number').time_since_entry.min().min()
-        
-    if active_site.groupby('patch_number').time_since_entry.max().max() > 200:
-        time_right = 150
+    
+    if active_site.groupby('patch_number').time_since_entry.max().max() > 300:
+        time_right = 250
     else:
         time_right = active_site.groupby('patch_number').time_since_entry.max().max()
       
