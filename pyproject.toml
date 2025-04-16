@@ -14,7 +14,7 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
-  "harp-python@git+https://github.com/harp-tech/harp-python",
+  "harp-python@git+https://github.com/harp-tech/harp-python@v0.3.0",
   "aind-behavior-vr-foraging@git+https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging",
   "pandas",
   "numpy",
@@ -23,7 +23,6 @@ dependencies = [
   "matplotlib",
   "seaborn",
   "scikit-learn",
-  "tabulate",
   "statsmodels",
 ]
 
