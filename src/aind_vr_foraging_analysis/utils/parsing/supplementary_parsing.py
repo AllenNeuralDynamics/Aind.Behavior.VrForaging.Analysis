@@ -43,7 +43,7 @@ def assign_odor_triggers(reward_sites, odor_triggers):
     
 class AddExtraColumns:
     def __init__(self, all_epochs, run_on_init=True):
-        self.all_epochs = all_epochs
+        self.all_epochs = all_epochs.copy()
 
         if run_on_init:
             self.add_main_info()

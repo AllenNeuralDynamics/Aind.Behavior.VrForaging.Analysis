@@ -41,9 +41,23 @@ def parse_user_date(user_date_str):
     try:
         return datetime.strptime(user_date_str, "%Y-%m-%d").date()  # Convert user input to date
     except ValueError:
-        return None
+        return "Invalid date format"  # Return None if the format is incorrect
 
 def extract_and_convert_time(filename):
+    """
+    Extracts a timestamp from a filename and converts it to a local date in the 'America/Los_Angeles' timezone.
+
+    The filename must follow one of these formats:
+    - 'prefix_YYYY-MM-DDTHHMMSSZ_suffix' (UTC timestamp, indicated by 'Z')
+    - 'prefix_YYYYMMDDTHHMMSS_suffix' (Local time in 'America/Los_Angeles')
+
+    Parameters:
+    filename (str): A string containing a timestamp in one of the expected formats.
+
+    Returns:
+    datetime.date: The extracted and converted local date.
+    str: "Invalid filename format" if the filename format does not match expectations.
+    """
     seattle_tz = pytz.timezone('America/Los_Angeles')
 
     # Extract the timestamp part
@@ -59,7 +73,6 @@ def extract_and_convert_time(filename):
         return dt_local.date()
     except ValueError:
         return "Invalid filename format"
-
 
 class TaskSchemaProperties:
     """This class is used to store the schema properties of the task configuration.
@@ -138,13 +151,20 @@ class ContinuousData:
 
         if load_continuous == True:
             self.encoder_data = self.encoder_loading()
-            # self.choice_feedback = self.choice_feedback_loading()
-            # self.lick_onset, self.lick_offset = self.lick_onset_loading()
-            # self.give_reward, self.pulse_duration = self.water_valve_loading()
-            # # self.succesful_wait = self.succesfull_wait_loading()
-            # self.sniff_data_loading()
+            self.choice_feedback = self.choice_feedback_loading()
+            self.lick_onset, self.lick_offset = self.lick_onset_loading()
+            self.give_reward, self.pulse_duration = self.water_valve_loading()
+            # self.succesful_wait = self.succesfull_wait_loading()
+            self.sniff_data_loading()
+            self.position_loading()
             # self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
+    def position_loading(self):
+        position = self.data['operation_control'].streams.CurrentPosition.data
+        self.position_data = position
+        
+        return self.position_data
+        
     def encoder_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
         if self.current_version >= Version("0.4.0"):
@@ -1183,11 +1203,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     patches = data["software_events"].streams.ActivePatch.data
 
     # Instances where a patch gets defined but it's not really used. Happens during block transitions. 
-    merged = pd.concat([patches, active_site])
-    merged.sort_index(inplace=True)
-    merged['consecutive_active_patch'] = (merged['name'] == 'ActivePatch') & (merged['name'].shift(-1) == 'ActivePatch')
-    indexes_to_remove = merged.loc[merged['consecutive_active_patch'] == True].index
-    patches = patches.drop(index=indexes_to_remove)
+    patches['real_diff'] = patches.index.to_series().diff().shift(-1).fillna(0.1)
+    patches = patches[patches.real_diff >= 0.01]
 
     df_patch = pd.json_normalize(patches["data"])
     df_patch.index = patches.index
@@ -1225,10 +1242,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     all_epochs.index.name = "start_time"
 
     # ## Add last timestamp
-    # if "endsession" in data["config"].streams:
-    #     all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
-    # else:
-    #     all_epochs = all_epochs.iloc[-1]
+    if "endsession" in data["config"].streams:
+        all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
         
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
@@ -1291,11 +1306,9 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     patch_stats['reward_available'] = data['software_events'].streams.PatchRewardAvailable.data['data'].values
     patch_stats['reward_probability'] = data['software_events'].streams.PatchRewardProbability.data['data'].values
     patch_stats['reward_probability'] = patch_stats['reward_probability'].round(3)
-    try:
-        patch_stats.drop(index=indexes_to_remove, inplace=True)    
-    except:
-        print(indexes_to_remove)
-        pass
+
+    patch_stats['real_diff'] = patch_stats.index.to_series().diff().shift(-1).fillna(0.1)
+    patch_stats = patch_stats[patch_stats.real_diff >= 0.01]
     
     # Make sure both DataFrames are sorted by index
     reward_sites = reward_sites.sort_index()
@@ -1304,7 +1317,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     # Perform merge_asof on the index
     merged = pd.merge_asof(
         reward_sites,
-        patch_stats,
+        patch_stats.drop(columns=["real_diff"]),
         left_index=True,
         right_index=True,
         direction='backward'
@@ -1313,8 +1326,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     assert len(merged) == len(reward_sites), "Length mismatch after merge"
     
     # Concatenate the results to all_epochs
-    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0)
+    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0).sort_index()
 
-    return all_epochs.sort_index(inplace=True)
+    return all_epochs
 
 ## ------------------------------------------------------------------------- ##
