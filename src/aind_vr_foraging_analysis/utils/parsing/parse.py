@@ -751,8 +751,13 @@ def load_session_data(
         with open(str(session_path_config) + r"\config.json", "r") as json_file:
             _out_dict["config"] = json.load(json_file)
     elif "Logs" in os.listdir(session_path_behavior):
-        _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
-
+        try:
+            _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
+        except json.JSONDecodeError:
+            print("Config file is empty or corrupted.")
+            _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=False)
+            for item in ['rig_input', 'tasklogic_input', 'session_input']:
+                _out_dict['config'].streams[item].load_from_file()
     return _out_dict
 
 ## ------------------------------------------------------------------------- ##
@@ -1176,8 +1181,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     )
     active_site.drop(columns=["previous_epoch"], inplace=True)
 
-    active_site["label"].replace("Reward", "OdorSite", inplace=True)
-    active_site["label"].replace("RewardSite", "OdorSite", inplace=True)
+    active_site["label"] = active_site["label"].replace("Reward", "OdorSite")
+    active_site["label"] = active_site["label"].replace("RewardSite", "OdorSite")
 
     if "treadmill_specification.friction.distribution_parameters.value" in active_site.columns:
         active_site.rename(
@@ -1204,7 +1209,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     # Instances where a patch gets defined but it's not really used. Happens during block transitions. 
     patches['real_diff'] = patches.index.to_series().diff().shift(-1).fillna(0.1)
-    patches = patches[patches.real_diff >= 0.01]
+    patches = patches[patches.real_diff >= 0.03]
 
     df_patch = pd.json_normalize(patches["data"])
     df_patch.index = patches.index
@@ -1243,6 +1248,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     # ## Add last timestamp
     if "endsession" in data["config"].streams:
+        data["config"].streams.endsession.load_from_file()
         all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
         
     # Recover tones
