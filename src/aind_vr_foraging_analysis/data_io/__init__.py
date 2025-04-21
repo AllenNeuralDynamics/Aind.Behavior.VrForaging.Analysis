@@ -158,6 +158,13 @@ class HarpSource(DataStreamSource):
                             name=_inverted_device[int(file.stem.split("_")[-1])],
                         )
                     )
+                except ValueError:
+                    streams.append(
+                        HarpStream(
+                            self.device,
+                            file,
+                            name=file.stem.split("_")[-1])
+                        )
                 except KeyError:
                     Warning(f"Could not find a register for {file}")
                 except ValueError as e:
