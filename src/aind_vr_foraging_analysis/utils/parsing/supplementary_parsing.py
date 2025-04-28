@@ -132,7 +132,9 @@ class AddExtraColumns:
 
         for index, row in odor_sites.iterrows():
             # Number of first sites without stopping - useful for filtering disengagement
-            if row["is_choice"] == False and row["site_number"] == 0:
+            if (row["is_choice"] == False and row["site_number"] == 0)|(row["is_choice"] == True and row["site_number"] == 0):
+                skipped_count += 1
+            elif row["is_choice"] == False and row["site_number"] == 1:
                 skipped_count += 1
             elif row["is_choice"] == True:
                 skipped_count = 0
