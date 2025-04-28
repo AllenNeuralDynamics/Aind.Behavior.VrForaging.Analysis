@@ -928,7 +928,6 @@ def trial_collection(
             ]
             trial.index -= start_reward
             time_reference = start_reward
-
         if continuous == True:
             # Assuming trial.values, window, and samples_per_second are defined
             # Calculate the maximum number of intervals that can fit within the available data points
@@ -944,11 +943,12 @@ def trial_collection(
                 trial = trial.values[:len(times)]
             else:
                 trial = trial.values
-            
             trial_average["times"] = times
+
         else:
             trial_average["times"] = trial.index     
-            trial = trial.values     
+            trial = trial.values    
+             
         
         trial_average['time_reference'] = time_reference
         
@@ -978,6 +978,8 @@ def raster_with_velocity(
         "Alpha-pinene": "#1b9e77",
         "Amyl Acetate": "#7570b3",
     },
+    with_velocity: bool = True,
+    barplots: bool = True,
 ):
         
     test_df = active_site.groupby('patch_number').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
@@ -1009,13 +1011,16 @@ def raster_with_velocity(
                 color = "pink"
             else:
                 color = 'yellow'
-        ax1.barh(int(row['patch_number']), left=row.time_since_entry, height=0.85, width=row.duration_epoch, color=color,  linewidth=0.5)
+                
+        if barplots:
+            ax1.barh(int(row['patch_number']), left=row.time_since_entry, height=0.85, width=row.duration_epoch, color=color,  linewidth=0.5)
         
-        if row['time_since_entry'] <0:
-            current_trial = trial_summary[trial_summary['patch_number'] == row['patch_number']]
+        if with_velocity:
+            if row['time_since_entry'] <0:
+                current_trial = trial_summary[trial_summary['patch_number'] == row['patch_number']]
 
-            ax2.plot(current_trial['times'], current_trial['speed']+(max_speed*(row['patch_number']))+max_speed/1.8, color='black', linewidth=0.8, alpha=0.8)
-            ax2.set_ylim(0, max_speed*(active_site['patch_number'].max()+2))
+                ax2.plot(current_trial['times'], current_trial['speed']+(max_speed*(row['patch_number']))+max_speed/1.8, color='black', linewidth=0.8, alpha=0.8)
+                ax2.set_ylim(0, max_speed*(active_site['patch_number'].max()+2))
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
