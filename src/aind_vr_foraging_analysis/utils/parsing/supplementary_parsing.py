@@ -75,7 +75,6 @@ class AddExtraColumns:
                 patch_number = row['patch_number']
                 first_entry = True
         
-        
         merged_df = pd.merge(self.all_epochs, patch_onset, on='patch_number', how='left')
         self.all_epochs['patch_onset'] = merged_df['patch_onset'].values
         self.all_epochs['time_since_entry'] = self.all_epochs.index - self.all_epochs['patch_onset']
@@ -132,10 +131,10 @@ class AddExtraColumns:
 
         for index, row in odor_sites.iterrows():
             # Number of first sites without stopping - useful for filtering disengagement
-            if (row["is_choice"] == False and row["site_number"] == 0)|(row["is_choice"] == True and row["site_number"] == 0):
+            if (row["is_choice"] == False and row["site_number"] == 0):
                 skipped_count += 1
-            elif row["is_choice"] == False and row["site_number"] == 1:
-                skipped_count += 1
+            # elif row["is_choice"] == False and row["site_number"] == 1:
+            #     skipped_count += 1
             elif row["is_choice"] == True:
                 skipped_count = 0
             odor_sites.loc[index, "skipped_count"] = skipped_count
