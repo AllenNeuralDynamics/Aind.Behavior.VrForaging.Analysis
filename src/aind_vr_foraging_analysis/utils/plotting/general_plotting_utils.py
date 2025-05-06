@@ -189,7 +189,6 @@ def speed_traces_epochs(
 
 def segmented_raster_vertical(
     reward_sites: pd.DataFrame,
-    config,
     save: bool = False,
     color_dict_label: dict = {
         "Ethyl Butyrate": "#d95f02",
@@ -199,13 +198,13 @@ def segmented_raster_vertical(
 ):
 
     patch_number = len(reward_sites.patch_number.unique())
-    number_odors = len(reward_sites["odor_label"].unique())
+    number_odors = len(reward_sites["patch_label"].unique())
 
     # Make second row proportional to the number of odors
     list_odors = []
-    for odor in reward_sites.odor_label.unique():
+    for odor in reward_sites.patch_label.unique():
         list_odors.append(
-            reward_sites.loc[reward_sites.odor_label == odor].patch_number.nunique()
+            reward_sites.loc[reward_sites.patch_label == odor].patch_number.nunique()
         )
     grid = (np.array(list_odors) / patch_number) * number_odors
 
@@ -244,7 +243,7 @@ def segmented_raster_vertical(
         ax1.scatter(
             row["patch_number"],
             -0.25,
-            color=color_dict_label[row["odor_label"]],
+            color=color_dict_label[row["patch_label"]],
             marker="^",
             s=35,
             edgecolor="black",
@@ -252,7 +251,7 @@ def segmented_raster_vertical(
         )
 
     odors = []
-    for odor in reward_sites["odor_label"].unique():
+    for odor in reward_sites["patch_label"].unique():
         odors.append(
             mpatches.Patch(
                 color=color_dict_label[odor],
@@ -272,12 +271,12 @@ def segmented_raster_vertical(
     ax1.set_ylim(-1, max(reward_sites.site_number) + 1)
 
     # Create subplots dynamically in the bottom row (row index 1)
-    unique_patches = reward_sites["odor_label"].unique()
+    unique_patches = reward_sites["patch_label"].unique()
     axes = [plt.subplot(gs[1, i]) for i in range(number_odors)]
 
     # Now loop over each odor and axis
-    for ax, odor_label in zip(axes, unique_patches):
-        selected_sites = reward_sites.loc[reward_sites.odor_label == odor_label]
+    for ax, patch_label in zip(axes, unique_patches):
+        selected_sites = reward_sites.loc[reward_sites.patch_label == patch_label]
         previous_active = 0
         value = 0
         for index, row in selected_sites.iterrows():
@@ -294,7 +293,7 @@ def segmented_raster_vertical(
                 else:
                     color = "lightgrey"
 
-            ax.set_title(odor_label, color=color_dict_label[row["odor_label"]])
+            ax.set_title(patch_label, color=color_dict_label[row["patch_label"]])
 
             if row["patch_number"] != previous_active:
                 value += 1
@@ -1003,7 +1002,7 @@ def raster_with_velocity(
             
         if row['label'] == 'OdorSite':
             if row['site_number'] == 0:
-                ax1.scatter(0, row.patch_number, color=color_dict_label[row.odor_label], marker='s', s=60, edgecolor='black', linewidth=0.0)
+                ax1.scatter(0, row.patch_number, color=color_dict_label[row.patch_label], marker='s', s=60, edgecolor='black', linewidth=0.0)
 
             if row["is_reward"] == 1 and row["is_choice"] == True:
                 color = "steelblue"
