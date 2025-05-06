@@ -69,7 +69,6 @@ def set_clean_yaxis(ax, data, variable, annotation_top=None, n_ticks=4):
 
         ymax_rounded = int(np.ceil(ymax / step)) * step
         
-        print(f'rough_range: {rough_range}')
         yticks = np.arange(ymin, ymax_rounded + 1, step)
         
         ax.set_ylim(ymin, ymax_rounded+0.1)
@@ -150,7 +149,6 @@ def plot_significance(general_df: pd.DataFrame, axes, variable = 'total_rewards'
     else:
         significance = "ns"
     
-    print(significance)
     axes.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.5, c=col)
     axes.text((x1 + x2) * 0.5, y + h, significance, ha='center', va='bottom', color=col)
     return y + h  # Return the top of the annotation
