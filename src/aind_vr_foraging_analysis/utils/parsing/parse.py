@@ -101,7 +101,10 @@ class TaskSchemaProperties:
             self.tasklogic = "tasklogic_input"
 
         self._data["config"].streams[self.tasklogic].load_from_file()
-        version = Version(self._data["config"].streams[self.tasklogic].data["version"])
+        try:
+            version = Version(self._data["config"].streams[self.tasklogic].data["version"])
+        except KeyError:
+            version = Version("0.0.0")
         
         if version >= Version("0.5.1"):
             self.environment = "environment"
@@ -109,18 +112,18 @@ class TaskSchemaProperties:
             self.odor_specifications = "odor_specification"
             self.odor_index = "index"
             
-        # if (
-        #     "environment_statistics" in self._data["config"].streams[self.tasklogic].data
-        # ):
-        self.environment = "environment_statistics"
-        self.reward_specification = "reward_specification"
-        self.odor_specifications = "odor_specification"
-        self.odor_index = "index"
-        # else:
-        #     self.environment = "environmentStatistics"
-        #     self.reward_specification = "rewardSpecifications"
-        #     self.odor_specifications = "odorSpecifications"
-        #     self.odor_index = "odorIndex"
+        if (
+            "environment_statistics" in self._data["config"].streams[self.tasklogic].data
+        ):
+            self.environment = "environment_statistics"
+            self.reward_specification = "reward_specification"
+            self.odor_specifications = "odor_specification"
+            self.odor_index = "index"
+        else:
+            self.environment = "environmentStatistics"
+            self.reward_specification = "rewardSpecifications"
+            self.odor_specifications = "odorSpecifications"
+            self.odor_index = "odorIndex"
 
         if "task_parameters" in self._data["config"].streams[self.tasklogic].data:
             self.patches = (
@@ -636,7 +639,7 @@ def load_session_data(
     session_path_behavior = session_path
     session_path_config = session_path
     suffix = "Register__"
-
+    
     # Work around the change in the folder structure
     if "behavior" in os.listdir(session_path):
         session_path_behavior = session_path / "behavior"
@@ -745,7 +748,6 @@ def load_session_data(
         _out_dict["software_events"] = data_io.SoftwareEventSource(
             path=session_path_behavior / "SoftwareEvents", name="software_events", autoload=True
         )
-
     # Load config old version
     if "config.json" in os.listdir(session_path_config):
         with open(str(session_path_config) + r"\config.json", "r") as json_file:
@@ -903,8 +905,12 @@ def parse_data_old(data, path):
 
     try:
         # Open and read the JSON file
-        with open(str(path) + r"\Config\TaskLogic.json", "r") as json_file:
-            config = json.load(json_file)
+        if 'Config' in os.listdir(path + r"\behavior"):
+            with open(str(path) + r"\behavior\Config\TaskLogic.json", "r") as json_file:
+                config = json.load(json_file)
+        else:
+            with open(str(path) + r"\behavior\Logs\TaskLogic.json", "r") as json_file:
+                config = json.load(json_file)
 
     except:
         with open(str(path) + r"\config.json", "r") as json_file:
@@ -1181,9 +1187,10 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     )
     active_site.drop(columns=["previous_epoch"], inplace=True)
 
+
     active_site["label"] = active_site["label"].replace("Reward", "OdorSite")
     active_site["label"] = active_site["label"].replace("RewardSite", "OdorSite")
-
+    
     if "treadmill_specification.friction.distribution_parameters.value" in active_site.columns:
         active_site.rename(
             columns={
@@ -1209,7 +1216,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     # Instances where a patch gets defined but it's not really used. Happens during block transitions. 
     patches['real_diff'] = patches.index.to_series().diff().shift(-1).fillna(0.1)
-    patches = patches[patches.real_diff >= 0.03]
+    patches = patches[patches.real_diff >= 0.05]
 
     df_patch = pd.json_normalize(patches["data"])
     df_patch.index = patches.index
@@ -1227,17 +1234,20 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     all_epochs.index = active_site.index
     
 # ------------
-    if 'calibration' in data["config"].streams.rig_input.data["harp_olfactometer"]:
-        if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
-            # Create a mapping dictionary from the nested structure
-            mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
+    try:
+        if 'calibration' in data["config"].streams.rig_input.data["harp_olfactometer"]:
+            if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
+                # Create a mapping dictionary from the nested structure
+                mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
 
-            # Replace numbers in the dataframe column with the corresponding odorant values
-            all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
-            
+                # Replace numbers in the dataframe column with the corresponding odorant values
+                all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
+                
+            else:
+                all_epochs["odor_label"] = all_epochs['patch_label']   
         else:
-            all_epochs["odor_label"] = all_epochs['patch_label']   
-    else:
+            all_epochs["odor_label"] = all_epochs['patch_label']
+    except:
         all_epochs["odor_label"] = all_epochs['patch_label']
 # ----------------
 
@@ -1245,17 +1255,24 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     all_epochs["site_number"] = all_epochs[all_epochs["label"] == "OdorSite"].groupby(group).cumcount()
     all_epochs["stop_time"] = all_epochs.index.to_series().shift(-1)
     all_epochs.index.name = "start_time"
-
+    
     # ## Add last timestamp
-    if "endsession" in data["config"].streams:
-        data["config"].streams.endsession.load_from_file()
-        all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
+    # try:
+    #     data["config"].streams.endsession.load_from_file()
+    #     all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
+    # except json.JSONDecodeError:
+    #     print('Removing last epoch because of empty endsession file')
+    #     all_epochs = all_epochs.loc[:-1]
+    # except AttributeError:
+    #     print('Removing last epoch because of empty endsession file')
+    #     all_epochs = all_epochs.loc[:-1]
         
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
 
     # Recover water delivery
     water = ContinuousData(data, load_continuous=False).water_valve_loading()[0]
+
 
     if "WaitRewardOutcome" in data["software_events"].streams:
         # Successfull waits
@@ -1275,7 +1292,6 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     stop_cues = []
     reward_onsets = []
     successful_waits = []
-
     reward_sites = all_epochs[all_epochs["label"] == "OdorSite"]
     if reward_sites.empty:
         print("No reward sites found")
@@ -1305,34 +1321,41 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     reward_sites["is_choice"] = reward_sites["choice_cue_time"].notnull().astype(bool)
     reward_sites["is_reward"] = reward_sites["reward_onset_time"].notnull().astype(bool)
 
-    # Add the reward characteristics columns
-    patch_stats = pd.DataFrame()
-    patch_stats.index = data['software_events'].streams.PatchRewardProbability.data.index
-    patch_stats['reward_amount'] = data['software_events'].streams.PatchRewardAmount.data['data'].values
-    patch_stats['reward_available'] = data['software_events'].streams.PatchRewardAvailable.data['data'].values
-    patch_stats['reward_probability'] = data['software_events'].streams.PatchRewardProbability.data['data'].values
-    patch_stats['reward_probability'] = patch_stats['reward_probability'].round(3)
-
-    patch_stats['real_diff'] = patch_stats.index.to_series().diff().shift(-1).fillna(0.1)
-    patch_stats = patch_stats[patch_stats.real_diff >= 0.01]
     
-    # Make sure both DataFrames are sorted by index
-    reward_sites = reward_sites.sort_index()
-    patch_stats = patch_stats.sort_index()
+    if 'PatchRewardProbability' in data['software_events'].streams:
+        # Add the reward characteristics columns
+        patch_stats = pd.DataFrame()
+        patch_stats.index = data['software_events'].streams.PatchRewardProbability.data.index
+        patch_stats['reward_amount'] = data['software_events'].streams.PatchRewardAmount.data['data'].values
+        patch_stats['reward_available'] = data['software_events'].streams.PatchRewardAvailable.data['data'].values
+        patch_stats['reward_probability'] = data['software_events'].streams.PatchRewardProbability.data['data'].values
+        patch_stats['reward_probability'] = patch_stats['reward_probability'].round(3)
 
-    # Perform merge_asof on the index
-    merged = pd.merge_asof(
-        reward_sites,
-        patch_stats.drop(columns=["real_diff"]),
-        left_index=True,
-        right_index=True,
-        direction='backward'
-    )
+        patch_stats['real_diff'] = patch_stats.index.to_series().diff().shift(-1).fillna(0.1)
+        patch_stats = patch_stats[patch_stats.real_diff >= 0.03]
+        
+        # Make sure both DataFrames are sorted by index
+        reward_sites = reward_sites.sort_index()
+        patch_stats = patch_stats.sort_index()
 
-    assert len(merged) == len(reward_sites), "Length mismatch after merge"
+        # Perform merge_asof on the index
+        merged = pd.merge_asof(
+            reward_sites,
+            patch_stats.drop(columns=["real_diff"]),
+            left_index=True,
+            right_index=True,
+            direction='backward'
+        )
+
+        assert len(merged) == len(reward_sites), "Length mismatch after merge"
     
-    # Concatenate the results to all_epochs
-    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0).sort_index()
+        # Concatenate the results to all_epochs
+        all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0).sort_index()
+        
+    else:
+        reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+        all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], reward_sites], axis=0).sort_index()
+
 
     return all_epochs
 
