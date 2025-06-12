@@ -235,7 +235,7 @@ def segmented_raster_vertical(
             edgecolor="darkgrey",
             linewidth=0.5,
         )
-        ax1.set_xlim(-1, max(reward_sites.patch_number) + 1)
+        ax1.set_xlim(-1, max(reward_sites.patch_number) + 1)          
         ax1.set_xlabel("Patch number")
         ax1.set_ylabel("Site number")
 
@@ -250,6 +250,10 @@ def segmented_raster_vertical(
             linewidth=0.0,
         )
 
+    if reward_sites.block.nunique() > 1:
+        change_index = reward_sites[reward_sites.block.diff() != 0]['patch_number'].values[1]
+        ax1.axvline(change_index-0.5, color='black', linestyle='--', label='Change')
+            
     odors = []
     for odor in reward_sites["patch_label"].unique():
         odors.append(
@@ -279,6 +283,9 @@ def segmented_raster_vertical(
         selected_sites = reward_sites.loc[reward_sites.patch_label == patch_label]
         previous_active = 0
         value = 0
+        if selected_sites.block.nunique() > 1:
+            change_index = selected_sites[selected_sites.block == selected_sites.block.unique()[0]].patch_number.nunique()
+            ax.axvline(change_index, color='black', linestyle='--', label='Change')
         for index, row in selected_sites.iterrows():
             # Choose the color of the site
             if row["is_reward"] == 1 and row["is_choice"] == True:
@@ -1517,15 +1524,25 @@ def raster_plot(x_start, pdf):
 
 def update_values(reward_sites, save = False):
     fig, ax = plt.subplots(3,1, figsize=(10,10), sharex=True)
-    sns.lineplot(data=reward_sites, x='odor_sites', y='velocity_threshold_cms', color='black', ax=ax[0])
-    ax[0].set_ylabel('Velocity \n threshold (cm/s)')
-
-    sns.lineplot(data=reward_sites, x='odor_sites', y='delay_s', color='black', ax=ax[1])
-    ax[1].set_ylabel('Delay (s)')
-
-    sns.lineplot(data=reward_sites, x='odor_sites', y='stop_duration_s', color='black', ax=ax[2])
-    ax[2].set_ylabel('Stop duration (s)')
-    ax[2].set_xlabel('Odor sites')
+    try:
+        sns.lineplot(data=reward_sites, x='odor_sites', y='velocity_threshold_cms', color='black', ax=ax[0])
+        ax[0].set_ylabel('Velocity \n threshold (cm/s)')
+    except:
+        pass
+    
+    try:
+        sns.lineplot(data=reward_sites, x='odor_sites', y='delay_s', color='black', ax=ax[1])
+        ax[1].set_ylabel('Delay (s)')
+    except:
+        pass
+    
+    try:
+        sns.lineplot(data=reward_sites, x='odor_sites', y='stop_duration_s', color='black', ax=ax[2])
+        ax[2].set_ylabel('Stop duration (s)')
+        ax[2].set_xlabel('Odor sites')
+    except:
+        pass
+    
     sns.despine()
     plt.tight_layout()
     
