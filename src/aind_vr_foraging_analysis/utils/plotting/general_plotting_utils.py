@@ -217,10 +217,10 @@ def segmented_raster_vertical(
             color = "steelblue"
         elif row["is_reward"] == 0 and row["is_choice"] == True:
             color = "pink"
-            if row["reward_available"] == 0:
+            if row["reward_available"] == 0 or row["reward_probability"] <= 0:
                 color = "crimson"
         else:
-            if row["reward_available"] == 0:
+            if row["reward_available"] == 0 or row["reward_probability"] <= 0:
                 color = "black"
             else:
                 color = "lightgrey"
@@ -292,10 +292,10 @@ def segmented_raster_vertical(
                 color = "steelblue"
             elif row["is_reward"] == 0 and row["is_choice"] == True:
                 color = "pink"
-                if row["reward_available"] == 0:
+                if row["reward_available"] == 0 or row["reward_probability"] <= 0:
                     color = "crimson"
             else:
-                if row["reward_available"] == 0:
+                if row["reward_available"] == 0 or row["reward_probability"] <= 0:
                     color = "black"
                 else:
                     color = "lightgrey"
