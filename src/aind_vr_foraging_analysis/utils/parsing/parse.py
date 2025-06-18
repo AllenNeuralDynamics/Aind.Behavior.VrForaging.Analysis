@@ -624,17 +624,18 @@ def read_harp_bin(file):
     return ret_pd
 
 ## ------------------------------------------------------------------------- ##
+    
 def load_session_data(
     session_path: str | PathLike,
 ) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
     session_path = Path(session_path)
-
+    
     HarpBehavior = data_io.reader_from_url(
         r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"
     )
     HarpOlfactometer = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/main/device.yml"
+        r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/7f38395f95c164bb55821139f752cd579da8d4af/device.yml"
     )
     HarpClock = data_io.reader_from_url(
         r"https://raw.githubusercontent.com/harp-tech/device.clocksynchronizer/main/device.yml"
@@ -661,7 +662,7 @@ def load_session_data(
     session_path_behavior = session_path
     session_path_config = session_path
     suffix = "Register__"
-    
+
     # Work around the change in the folder structure
     if "behavior" in os.listdir(session_path):
         session_path_behavior = session_path / "behavior"
