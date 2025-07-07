@@ -8,7 +8,7 @@ from typing import Callable, Dict, List, Optional
 import pandas as pd
 import requests
 from dotmap import DotMap
-from harp.reader import (DeviceReader, _create_register_parser, _ReaderParams,
+from harp.reader import (DeviceReader, _ReaderParams, _create_register_handler,
                          create_reader, read_schema)
 
 
@@ -104,16 +104,44 @@ def reader_from_url(
     """Example: https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"""
     response = requests.get(device_yml_url)
     response.raise_for_status()
-    device = read_schema(io.TextIOWrapper(io.BytesIO(response.content)), True)
+    if response.status_code == 200:
+        _yml_stream = io.TextIOWrapper(io.BytesIO(response.content))
+    else:
+        raise ValueError(f"Failed to fetch device yml from {device_yml_url}")
+
+    device = read_schema(_yml_stream, True)
     reg_readers = {
-        name: _create_register_parser(
-            device, name, _ReaderParams(base_path, None, True)
+        name: _create_register_handler(
+            device,
+            name,
+            _ReaderParams(base_path=base_path),
         )
         for name in device.registers.keys()
     }
     return DeviceReader(device, reg_readers)
 
+def reader_from_yml(
+    device_yml_url: str, base_path: Optional[PathLike] = Path(".")
+) -> DeviceReader:
+    """Reads a device from a URL"""
+    """Example: https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"""
+    response = requests.get(device_yml_url)
+    response.raise_for_status()
+    if response.status_code == 200:
+        _yml_stream = io.TextIOWrapper(io.BytesIO(response.content))
+    else:
+        raise ValueError(f"Failed to fetch device yml from {device_yml_url}")
 
+    device = read_schema(_yml_stream, True)
+    reg_readers = {
+        name: _create_register_handler(
+            device,
+            name,
+            _ReaderParams(base_path=base_path),
+        )
+        for name in device.registers.keys()
+    }
+    return DeviceReader(device, reg_readers)
 class HarpSource(DataStreamSource):
     def __init__(
         self,
