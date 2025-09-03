@@ -383,7 +383,7 @@ class RewardFunctions:
                 dict_odor[patches["label"]] = np.repeat(
                     patches[self.schema_properties.reward_specification]["amount"], 500
                 )
-                continue
+                update = "site_number"
             else:
                 function_type = patches[self.schema_properties.reward_specification]["reward_function"]["amount"]["function_type"]
                 if (
@@ -420,13 +420,14 @@ class RewardFunctions:
                     b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
                     y = b + a * x
                     
-            dict_odor[odor_label] = y
+                dict_odor[odor_label] = y
 
-        depletion_rule = patches[self.schema_properties.reward_specification]['reward_function']['depletion_rule']
-        if depletion_rule == 'OnChoice':
-            update = "site_number"
-        elif depletion_rule == 'OnReward':
-            update = "cumulative_rewards"
+                depletion_rule = patches[self.schema_properties.reward_specification]['reward_function']['depletion_rule']
+                if depletion_rule == 'OnChoice':
+                    update = "site_number"
+                elif depletion_rule == 'OnReward':
+                    update = "cumulative_rewards"
+                    
         for index, row in self.reward_sites.iterrows():           
             self.reward_sites.at[index, "reward_amount"] = np.around(
                 dict_odor[row["patch_label"]][int(row[update])], 3
@@ -450,7 +451,7 @@ class RewardFunctions:
                     patches[self.schema_properties.reward_specification]["probability"],
                     500,
                 )
-                continue
+                update = 'site_number'
             else:
                 function_type = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["function_type"]
                 if (
@@ -487,13 +488,13 @@ class RewardFunctions:
                     b = patches[self.schema_properties.reward_specification]["reward_function"]["probability"]["b"]
                     y = b + a * x
                 
-            dict_odor[odor_label] = y
+                dict_odor[odor_label] = y
 
-        depletion_rule = patches[self.schema_properties.reward_specification]['reward_function']['depletion_rule']
-        if depletion_rule == 'OnChoice':
-            update = "site_number"
-        elif depletion_rule == 'OnReward':
-            update = "cumulative_rewards"
+                depletion_rule = patches[self.schema_properties.reward_specification]['reward_function']['depletion_rule']
+                if depletion_rule == 'OnChoice':
+                    update = "site_number"
+                elif depletion_rule == 'OnReward':
+                    update = "cumulative_rewards"
             
         #### ----------- Need to add the modification for On Choice, right now specific for OnReward
         for index, row in self.reward_sites.iterrows():
@@ -524,7 +525,7 @@ class RewardFunctions:
                     amount = patches[self.schema_properties.reward_specification]["amount"]
                     y = initial - amount * x
                     dict_odor[odor_label] = y
-                continue
+                update = "site_number"
             else:
                 function_type = patches[self.schema_properties.reward_specification]["reward_function"]["available"][
                     "function_type"]
@@ -562,14 +563,14 @@ class RewardFunctions:
                     b = patches[self.schema_properties.reward_specification]["reward_function"]["available"]["b"]
                     y = b + a * x
                     
-            dict_odor[odor_label] = y
-            
-        depletion_rule = patches[self.schema_properties.reward_specification]['reward_function']['depletion_rule']
-        if depletion_rule == 'OnChoice':
-            update = "site_number"
-        elif depletion_rule == 'OnReward':
-            update = "cumulative_rewards"
-        
+                dict_odor[odor_label] = y
+                
+                depletion_rule = patches[self.schema_properties.reward_specification]['reward_function']['depletion_rule']
+                if depletion_rule == 'OnChoice':
+                    update = "site_number"
+                elif depletion_rule == 'OnReward':
+                    update = "cumulative_rewards"
+                
         for index, row in self.reward_sites.iterrows():
             self.reward_sites.at[index, "reward_available"] = np.around(
                 dict_odor[row["patch_label"]][int(row[update])], 3)
@@ -779,10 +780,14 @@ def load_session_data(
         try:
             _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=True)
         except json.JSONDecodeError:
-            print("Config file is empty or corrupted.")
+            print("Config file is empty or corrupted, loading manually")
             _out_dict["config"] = data_io.ConfigSource(path=session_path_behavior / "Logs", name="config", autoload=False)
-            for item in ['rig_input', 'tasklogic_input', 'session_input']:
-                _out_dict['config'].streams[item].load_from_file()
+            try:
+                for item in ['rig_input', 'tasklogic_input', 'session_input']:
+                    _out_dict['config'].streams[item].load_from_file()
+            except KeyError:
+                for item in ['Rig', 'TaskLogic']:
+                    _out_dict['config'].streams[item].load_from_file()
     return _out_dict
 
 ## ------------------------------------------------------------------------- ##
@@ -1284,10 +1289,10 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
     except json.JSONDecodeError:
         print('Removing last epoch because of empty endsession file')
-        all_epochs = all_epochs.loc[:-1]
+        all_epochs = all_epochs.iloc[:-1]
     except AttributeError:
         print('Removing last epoch because of empty endsession file')
-        all_epochs = all_epochs.loc[:-1]
+        all_epochs = all_epochs.iloc[:-1]
         
     # Recover tones
     choiceFeedback = ContinuousData(data, load_continuous=False).choice_feedback_loading()
@@ -1346,6 +1351,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     try:
         reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
         all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], reward_sites], axis=0).sort_index()
+        all_epochs.loc[all_epochs.label == 'Gap', 'label'] = 'InterSite'
         
     except KeyError:
         print("Reward functions from software events")
