@@ -128,9 +128,13 @@ class TaskSchemaProperties:
         if "task_parameters" in self._data["config"].streams[self.tasklogic].data:
             if 'blocks' in self._data["config"].streams[self.tasklogic].data["task_parameters"][self.environment].keys():
                 patches = []
-                for blocks in data["config"].streams['tasklogic_input'].data["task_parameters"]['environment']['blocks']:
-                    patches.extend(blocks['environment_statistics']['patches'])
+                for i, blocks in enumerate(self._data["config"].streams['tasklogic_input'].data["task_parameters"]['environment']['blocks']):
+                    if len(blocks['environment_statistics']['patches']) > 0:
+                        patches.extend(blocks['environment_statistics']['patches'])
+                    else:
+                        patches.extend(blocks['environment_statistics']['patches'][i])
                 self.patches = patches
+                
             else:
                 self.patches = (
                     self._data["config"].streams[self.tasklogic].data["task_parameters"][self.environment]["patches"]
@@ -379,6 +383,7 @@ class RewardFunctions:
         dict_odor = {}
 
         for patches in self.schema_properties.patches:
+            print(patches)
             if "reward_function" not in patches[self.schema_properties.reward_specification]:
                 dict_odor[patches["label"]] = np.repeat(
                     patches[self.schema_properties.reward_specification]["amount"], 500
@@ -1348,14 +1353,16 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     reward_sites["is_choice"] = reward_sites["choice_cue_time"].notnull().astype(bool)
     reward_sites["is_reward"] = reward_sites["reward_onset_time"].notnull().astype(bool)
     
-    try:
-        reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
-        all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], reward_sites], axis=0).sort_index()
-        all_epochs.loc[all_epochs.label == 'Gap', 'label'] = 'InterSite'
-        
-    except KeyError:
-        print("Reward functions from software events")
-        
+    # try:
+    print("Reward functions from software events")
+    
+    if  "GlobalPatchState" in data['software_events'].streams:
+        patch_stats = pd.json_normalize(data['software_events'].streams.GlobalPatchState.data['data'])
+        patch_stats.index = data['software_events'].streams.GlobalPatchState.data.index
+        patch_stats.drop(columns=['PatchId'], inplace=True)
+        patch_stats.rename(columns={'Amount':'reward_amount', 'Available':'reward_available', 'Probability':'reward_probability'}, inplace=True)
+        print(patch_stats)
+    else:
         # Add the reward characteristics columns
         patch_stats = pd.DataFrame()
         patch_stats.index = data['software_events'].streams.PatchRewardProbability.data.index
@@ -1366,25 +1373,32 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
         patch_stats['real_diff'] = patch_stats.index.to_series().diff().shift(-1).fillna(5)
         patch_stats = patch_stats[patch_stats.real_diff >= 0.05]
+        patch_stats.drop(columns=['real_diff'], inplace=True)
         
-        # Make sure both DataFrames are sorted by index
-        reward_sites = reward_sites.sort_index()
-        patch_stats = patch_stats.sort_index()
+    # Make sure both DataFrames are sorted by index
+    reward_sites = reward_sites.sort_index()
+    patch_stats = patch_stats.sort_index()
 
-        # Perform merge_asof on the index
-        merged = pd.merge_asof(
-            reward_sites,
-            patch_stats.drop(columns=["real_diff"]),
-            left_index=True,
-            right_index=True,
-            direction='backward'
-        )
+    # Perform merge_asof on the index
+    merged = pd.merge_asof(
+        reward_sites,
+        patch_stats,
+        left_index=True,
+        right_index=True,
+        direction='backward'
+    )
 
-        assert len(merged) == len(reward_sites), "Length mismatch after merge"
+    assert len(merged) == len(reward_sites), "Length mismatch after merge"
 
-        # Concatenate the results to all_epochs
-        all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0).sort_index()
-
+    # Concatenate the results to all_epochs
+    all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0).sort_index()
+    
+    print(all_epochs.columns)
+    # except (KeyError, AttributeError):
+    #     reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
+    #     all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], reward_sites], axis=0).sort_index()
+    #     all_epochs.loc[all_epochs.label == 'Gap', 'label'] = 'InterSite'
+        
     return all_epochs
 
 ## ------------------------------------------------------------------------- ##
