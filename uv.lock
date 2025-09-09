@@ -42,9 +42,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aind-behavior-vr-foraging"
+version = "0.5.1"
+source = { git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging?rev=v0.5.0#2764bc4b87dcbd738148a8839e9deb9d342523df" }
+dependencies = [
+    { name = "aind-behavior-services" },
+]
+
+[[package]]
 name = "aind-behavior-vrforaging-analysis"
 source = { editable = "." }
 dependencies = [
+    { name = "aind-behavior-vr-foraging" },
     { name = "contraqctor" },
     { name = "dotmap" },
     { name = "harp-python" },
@@ -67,6 +76,7 @@ linters = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aind-behavior-vr-foraging", git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging?rev=v0.5.0" },
     { name = "black", marker = "extra == 'linters'" },
     { name = "codespell", marker = "extra == 'linters'" },
     { name = "contraqctor", git = "https://github.com/AllenNeuralDynamics/contraqctor?rev=v0.4.3" },
