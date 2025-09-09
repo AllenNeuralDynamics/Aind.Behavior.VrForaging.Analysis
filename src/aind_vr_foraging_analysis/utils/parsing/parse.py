@@ -383,7 +383,6 @@ class RewardFunctions:
         dict_odor = {}
 
         for patches in self.schema_properties.patches:
-            print(patches)
             if "reward_function" not in patches[self.schema_properties.reward_specification]:
                 dict_odor[patches["label"]] = np.repeat(
                     patches[self.schema_properties.reward_specification]["amount"], 500
@@ -1361,7 +1360,6 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         patch_stats.index = data['software_events'].streams.GlobalPatchState.data.index
         patch_stats.drop(columns=['PatchId'], inplace=True)
         patch_stats.rename(columns={'Amount':'reward_amount', 'Available':'reward_available', 'Probability':'reward_probability'}, inplace=True)
-        print(patch_stats)
     else:
         # Add the reward characteristics columns
         patch_stats = pd.DataFrame()
@@ -1393,7 +1391,6 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     # Concatenate the results to all_epochs
     all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], merged], axis=0).sort_index()
     
-    print(all_epochs.columns)
     # except (KeyError, AttributeError):
     #     reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
     #     all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], reward_sites], axis=0).sort_index()
