@@ -1152,7 +1152,6 @@ def trial_collection(
             trial = continuous_data[(continuous_data.index >= row[aligned] + window[0]) & (continuous_data.index < row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
             time_reference = row[aligned]
-            print(trial)
         else:
             trial = continuous_data.loc[
                 start_reward + window[0] : start_reward + window[1], taken_col
