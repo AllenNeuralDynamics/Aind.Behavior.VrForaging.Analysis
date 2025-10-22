@@ -124,7 +124,7 @@ class TaskSchemaProperties:
             self.reward_specification = "rewardSpecifications"
             self.odor_specifications = "odorSpecifications"
             self.odor_index = "odorIndex"
-        
+
         if "task_parameters" in self._data["config"].streams[self.tasklogic].data:
             if 'blocks' in self._data["config"].streams[self.tasklogic].data["task_parameters"][self.environment].keys():
                 patches = []
@@ -171,7 +171,7 @@ class ContinuousData:
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
             self.position_loading()
-            # self.odor_triggers = odor_data_harp_olfactometer(self.data)
+            self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def position_loading(self):
         position = self.data['operation_control'].streams.CurrentPosition.data
