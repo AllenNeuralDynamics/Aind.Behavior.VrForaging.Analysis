@@ -59,67 +59,58 @@ from typing import List, Literal, Optional
 from pathlib import Path
 import os
 
-def find_sessions_relative_to_date(
-    mouse: str,
-    date_string: str,
-    base_path: str = 'Z:/scratch/vr-foraging/data/',
-    when: Literal['before', 'after', 'on_or_before', 'on_or_after', 'on', 'between'] = 'on_or_before',
-    end_date_string: Optional[str] = None,
-) -> List[Path]:
-    """
-    Returns a list of session paths for a given mouse that match the date condition.
-
-    Parameters:
-    - mouse: Mouse ID
-    - date_string: Start date (or the only date for non-'between' modes), format 'YYYY-MM-DD'
-    - base_path: Root data path
-    - when: One of ['before', 'after', 'on_or_before', 'on_or_after', 'on', 'between']
-    - end_date_string: Required if when == 'between'. Format 'YYYY-MM-DD'.
-
-    Returns:
-    - List of Path objects matching the condition
-    """
+def find_sessions_relative_to_date(base_paths: List[str] = ['Z:/scratch/vr-foraging/data', 'Z:/stage/vr-foraging/data'], 
+                                   mouse: str = '', 
+                                   date_string: str = '', 
+                                   when: Literal['before', 'after', 'on', 'between', 'on_or_before', 'on_or_after'] = 'on', 
+                                   end_date_string: str = None):
 
     target_date = parse_user_date(date_string)
     end_date = parse_user_date(end_date_string) if when == 'between' else None
 
-    directory = os.path.join(base_path, mouse)
-    files = os.listdir(directory)
-    sorted_files = sorted(files, key=lambda x: os.path.getctime(os.path.join(directory, x)))
-
     matching_sessions = []
 
-    for file_name in sorted_files:
-        session_date = extract_and_convert_time(file_name)
+    for base_path in base_paths:  # loop through both root folders
+        directory = os.path.join(base_path, mouse)
 
-        if when == 'before':
-            compare = session_date < target_date
-        elif when == 'after':
-            compare = session_date > target_date
-        elif when == 'on_or_before':
-            compare = session_date <= target_date
-        elif when == 'on_or_after':
-            compare = session_date >= target_date
-        elif when == 'on':
-            compare = session_date == target_date
-        elif when == 'between':
-            if end_date is None:
-                raise ValueError("end_date_string must be provided when 'when' is 'between'")
-            compare = target_date <= session_date <= end_date
-        else:
-            raise ValueError(f"Invalid 'when' argument: {when}")
+        if not os.path.exists(directory):
+            continue
 
-        if compare:
-            matching_sessions.append(Path(directory) / file_name)
+        files = os.listdir(directory)
+        sorted_files = sorted(files, key=lambda x: os.path.getctime(os.path.join(directory, x)))
+        for file_name in sorted_files:
+            print(f"Checking file: {file_name}")
+            session_date = extract_and_convert_time(file_name)
 
-    if not matching_sessions:
-        print(f"No sessions found for mouse {mouse} with condition '{when}' on {date_string}"
-              f"{' to ' + end_date_string if end_date else ''}")
+            if when == 'before':
+                compare = session_date < target_date
+            elif when == 'after':
+                compare = session_date > target_date
+            elif when == 'on_or_before':
+                compare = session_date <= target_date
+            elif when == 'on_or_after':
+                compare = session_date >= target_date
+            elif when == 'on':
+                compare = session_date == target_date
+            elif when == 'between':
+                if end_date is None:
+                    raise ValueError("end_date_string must be provided when 'when' is 'between'")
+                compare = target_date <= session_date <= end_date
+            else:
+                raise ValueError(f"Invalid 'when' argument: {when}")
+
+            if compare:
+                matching_sessions.append(Path(directory) / file_name)
+
+        if not any(Path(directory) in s.parents for s in matching_sessions):
+            print(f"No sessions found for {mouse} in {base_path} "
+                f"with '{when}' on {date_string}"
+                f"{' to ' + end_date_string if end_date else ''}")
 
     return matching_sessions
 
 
-def load_session(session_path: Path):
+def load_session(session_path: Path, extra:bool=True):
     """
     Loads and processes a behavioral session from a given path.
     
@@ -143,9 +134,10 @@ def load_session(session_path: Path):
     data = parse.load_session_data(session_path)
 
     all_epochs = parse.parse_dataframe(data)
-
-    extra_columns = AddExtraColumns(all_epochs, run_on_init=True)
-    all_epochs = extra_columns.get_all_epochs()
+    
+    if extra:
+        extra_columns = AddExtraColumns(all_epochs, run_on_init=True)
+        all_epochs = extra_columns.get_all_epochs()
 
     stream_data = parse.ContinuousData(data)
     
