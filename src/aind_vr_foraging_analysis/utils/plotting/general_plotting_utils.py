@@ -217,9 +217,9 @@ def segmented_raster_vertical_reversal(reward_sites: pd.DataFrame,
             reward_sites.loc[reward_sites.odor_label == odor].patch_number.nunique()
         )
     grid = (np.array(list_odors) / patch_number) * number_odors
-    width = patch_number/10
+    width = patch_number/8
     if width < 6:
-        width = 12
+        width = 14
     fig = plt.figure(figsize=(width, 8))
     gs = GridSpec(2, number_odors, width_ratios=grid)
 
@@ -227,13 +227,25 @@ def segmented_raster_vertical_reversal(reward_sites: pd.DataFrame,
         ax1 = plt.subplot(gs[0, 0:number_odors])
         if row["is_reward"] == 1 and row["is_choice"] == True:
             color = "steelblue"
-        elif row["is_reward"] == 0 and row["is_choice"] == True:
-            color = "pink"
-            if row["reward_probability"] <= 0:
+        elif row["is_reward"] == 0 and row["is_choice"]:
+            if row['patch_label'] == 'N':
                 color = "crimson"
+            elif row['patch_label'] == 'D' and row['site_number'] >= 3:
+                color = "crimson"
+            elif row['patch_label'] == 'S' and row['site_number'] >= 1:
+                color = "crimson"
+            else:
+                color = "pink"
         else:
-            if row["reward_probability"] <= 0:
-                color = "black"
+            if row['patch_label'] in ['N', 'D', 'S']:
+                if row['patch_label'] == 'N':
+                    color = "black"
+                elif row['patch_label'] == 'D' and row['site_number'] >= 3:
+                    color = "black"
+                elif row['patch_label'] == 'S' and row['site_number'] >= 1:
+                    color = "black"
+                else:
+                    color = "lightgrey"
             else:
                 color = "lightgrey"
 
@@ -400,10 +412,12 @@ def segmented_raster_vertical_reversal(reward_sites: pd.DataFrame,
         ax.set_ylim(-0.5, reward_sites.site_number.max() + 1)
         ax.set_ylabel("Site number")
         ax.set_xlabel("Patch number")
-        ax.set_title(odor_label)
+        # ax.set_title(odor_label)
         
 
     plt.legend(handles=legend_handles, loc='best', bbox_to_anchor=(1.05, 1), fontsize=12, ncol=1)
+    # plt.suptitle(reward_sites.session.unique()[0])
+
     fig.tight_layout()
     sns.despine()
     
@@ -1298,7 +1312,7 @@ def trial_collection_distance(
         
         if len(trial) == len(trial_average["times"]):
             if "filtered_velocity" == taken_col:
-                trial_average["speed"] = trial
+                trial_average["filtered_velocity"] = trial
             else:
                 trial_average[taken_col] = trial
         else:
@@ -1325,12 +1339,17 @@ def raster_with_velocity(
     with_velocity: bool = True,
     barplots: bool = True,
 ):
-        
+            
     test_df = active_site.groupby('patch_number').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
     
+    if len(test_df) <= 1:
+        print('Not enough patches to plot raster with velocity')
+        return
+    
     trial_summary = trial_collection(test_df, stream_data.encoder_data, aligned='patch_onset', cropped_to_length='patch')
+
     n_patches = active_site.patch_number.nunique()
     n_max_stops = active_site.site_number.max() + 1
     fig, ax1 = plt.subplots(figsize=(15+ n_max_stops/2, n_patches/2))
