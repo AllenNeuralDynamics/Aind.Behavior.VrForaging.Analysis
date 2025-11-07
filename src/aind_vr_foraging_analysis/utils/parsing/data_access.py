@@ -79,7 +79,6 @@ def find_sessions_relative_to_date(base_paths: List[str] = ['Z:/scratch/vr-forag
         files = os.listdir(directory)
         sorted_files = sorted(files, key=lambda x: os.path.getctime(os.path.join(directory, x)))
         for file_name in sorted_files:
-            print(f"Checking file: {file_name}")
             session_date = extract_and_convert_time(file_name)
 
             if when == 'before':
@@ -102,10 +101,10 @@ def find_sessions_relative_to_date(base_paths: List[str] = ['Z:/scratch/vr-forag
             if compare:
                 matching_sessions.append(Path(directory) / file_name)
 
-        if not any(Path(directory) in s.parents for s in matching_sessions):
-            print(f"No sessions found for {mouse} in {base_path} "
-                f"with '{when}' on {date_string}"
-                f"{' to ' + end_date_string if end_date else ''}")
+    if not matching_sessions:
+        print(f"No sessions found for {mouse} "
+            f"with '{when}' on {date_string}"
+            f"{' to ' + end_date_string if end_date else ''}")
 
     return matching_sessions
 
