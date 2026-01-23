@@ -844,7 +844,7 @@ def speed_traces_efficient(
         )
 
     sns.despine()
-    plt.suptitle(str(mouse) + "_" + str(session) + "_" + odor)
+    plt.suptitle(str(mouse) + "_" + str(session) + "_" + patch)
     plt.tight_layout()
 
     if save != False:
@@ -870,6 +870,7 @@ def preward_estimates(
             "reward_probability": "min",
         }
     )
+
     summary = summary.loc[summary.site_number > minimum_size]
     summary.reset_index(inplace=True)
 
@@ -879,6 +880,7 @@ def preward_estimates(
         x="patch_label",
         y="is_reward",
         hue="patch_label",
+        order = summary.patch_label.unique(),
         palette=color_dict_label,
         data=summary,
         showfliers=False,
@@ -891,21 +893,24 @@ def preward_estimates(
         palette=["black", "black", "black"],
         data=summary,
         ax=ax,
+        order=summary.patch_label.unique(),
         linewidth=0.2,
         edgecolor="black",
         jitter=0.25,
     )
     plt.xlabel("Odor")
     plt.ylabel("Total reward \n collected")
-    plt.xticks([0, 1], [0.9, 0.6])
+    plt.xticks(rotation=45)
     plt.xlabel("Initial P(reward)")
-
+    ax.get_legend().remove()
+    
     ax = plt.subplot(1, 3, 2)
     sns.boxplot(
         x="patch_label",
         y="site_number",
         hue="patch_label",
         palette=color_dict_label,
+        order=summary.patch_label.unique(),
         data=summary,
         showfliers=False,
         ax=ax,
@@ -916,23 +921,27 @@ def preward_estimates(
         hue="patch_label",
         palette=["black", "black", "black"],
         data=summary,
+        order=summary.patch_label.unique(),
         ax=ax,
         linewidth=0.2,
         edgecolor="black",
+        legend=False,
         jitter=0.25,
     )
 
     plt.xlabel("Odor")
     plt.ylabel("Total stops")
-    plt.xticks([0, 1], [0.9, 0.6])
+    plt.xticks(rotation=45)
     plt.xlabel("Initial P(reward)")
-
+    ax.get_legend().remove()
+    
     ax = plt.subplot(1, 3, 3)
     sns.boxplot(
         x="patch_label",
         y="reward_probability",
         hue="patch_label",
         palette=color_dict_label,
+        order=summary.patch_label.unique(),
         data=summary,
         showfliers=False,
         ax=ax,
@@ -944,15 +953,18 @@ def preward_estimates(
         palette=["black", "black", "black"],
         data=summary,
         ax=ax,
+        order=summary.patch_label.unique(),
         linewidth=0.2,
         edgecolor="black",
+        legend=False,
         jitter=0.25,
     )
 
     plt.xlabel("Odor")
+    plt.xticks(rotation=45)
     plt.ylabel("P(reward) when leaving")
-    plt.xticks([0, 1], [0.9, 0.6])
     plt.xlabel("Initial P(reward)")
+    ax.get_legend().remove()
 
     sns.despine()
     plt.tight_layout()
