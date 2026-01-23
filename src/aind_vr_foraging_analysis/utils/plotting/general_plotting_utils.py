@@ -579,7 +579,7 @@ def speed_traces_value(
     save=False,
 ):
 
-    n_odors = len(trial_summary.odor_label.unique())
+    n_odors = len(trial_summary.patch_label.unique())
     fig, ax = plt.subplots(
         n_odors, 5, figsize=(18, n_odors * 5), sharex=True, sharey=True
     )
@@ -595,7 +595,7 @@ def speed_traces_value(
             if n_odors == 1:
                 ax[i].set_xlabel("Time after odor onset (s)")
             else:
-                ax[len(trial_summary.odor_label.unique()) - 1][j].set_xlabel(
+                ax[len(trial_summary.patch_label.unique()) - 1][j].set_xlabel(
                     "Time after odor onset (s)"
                 )
 
@@ -615,9 +615,8 @@ def speed_traces_value(
 
     for i in trial_summary.is_choice.unique():
         assigned_colors = choose_palette(trial_summary, condition=condition)
-
         i = int(i)
-        for j, odor_label in enumerate(trial_summary.odor_label.unique()):
+        for j, patch_label in enumerate(trial_summary.patch_label.unique()):
             if n_odors == 1:
                 ax1 = ax
             else:
@@ -625,7 +624,7 @@ def speed_traces_value(
 
             df_results = (
                 trial_summary.loc[
-                    (trial_summary.odor_label == odor_label)
+                    (trial_summary.patch_label == patch_label)
                     & (trial_summary.is_choice == i)
                 ]
                 .groupby([condition, "odor_sites", "times"])[["speed"]]
@@ -669,7 +668,7 @@ def speed_traces_value(
                 ax=ax1[4],
             )
 
-            ax1[2].set_title(f"Odor {odor_label} ")
+            ax1[2].set_title(f"Patch {patch_label} ")
 
             if i == 1:
                 ax1[i].text(1.2, 75, "Stopped", fontsize=12)
@@ -691,14 +690,14 @@ def speed_traces_efficient(
     trial_summary: pd.DataFrame,
     mouse,
     session,
-    odor: str = "all",
+    patch: str = "all",
     window: tuple = (-1, 3),
     save=False,
 ):
     """Plots the speed traces for each stopping condition"""
 
-    if odor != "all":
-        reward_sites = reward_sites.loc[reward_sites["odor_label"] == odor]
+    if patch != "all":
+        reward_sites = reward_sites.loc[reward_sites["patch_label"] == patch]
 
     colors = ["crimson", "darkgreen"]
     fig, ax = plt.subplots(3, 3, figsize=(12, 12), sharex=True, sharey=True)
@@ -979,13 +978,13 @@ def velocity_traces_odor_entry(
     save: bool = False,
 ):
     """Plots the speed traces for each odor label condition"""
-    n_odors = trial_summary.odor_label.unique()
+    n_odors = trial_summary.patch_label.unique()
     
     fig, ax1 = plt.subplots(
         1, len(n_odors), figsize=(len(n_odors) * 3.5, 4), sharex=True, sharey=True
     )
 
-    for j, odor_label in enumerate(n_odors):
+    for j, patch_label in enumerate(n_odors):
         if len(n_odors) != 1:
             ax = ax1[j]
             ax1[0].set_ylabel("Velocity (cm/s)")
@@ -994,7 +993,7 @@ def velocity_traces_odor_entry(
             ax.set_ylabel("Velocity (cm/s)")
 
         ax.set_xlabel("Time after odor onset (s)")
-        ax.set_title(f"Patch {odor_label}")
+        ax.set_title(f"Patch {patch_label}")
         ax.set_ylim(-13, max_range)
         ax.set_xlim(window)
         ax.hlines(
@@ -1004,7 +1003,7 @@ def velocity_traces_odor_entry(
             np.arange(-20, max_range, 0.1),
             0,
             window[1],
-            color=color_dict_label[odor_label],
+            color=color_dict_label[patch_label],
             alpha=0.5,
             linewidth=0,
         )
@@ -1019,10 +1018,10 @@ def velocity_traces_odor_entry(
 
         df_results = (
             trial_summary.loc[
-                (trial_summary.odor_label == odor_label)
+                (trial_summary.patch_label == patch_label)
                 & (trial_summary.site_number == 0)
             ]
-            .groupby(["odor_sites", "times", "odor_label"])[["speed"]]
+            .groupby(["odor_sites", "times", "patch_label"])[["speed"]]
             .median()
             .reset_index()
         )
@@ -1070,7 +1069,7 @@ def summary_withinsession_values(reward_sites,
 
     fig, ax = plt.subplots(3,2,figsize=(16,10), sharex=True)
 
-    df = reward_sites.loc[(reward_sites.last_site == 1)&(reward_sites.site_number != 0)].groupby(['patch_number', 'patch_label']).agg({'reward_probability':'min','site_number':'mean', 'cumulative_rewards': 'max', 'consecutive_rewards': 'max', 'cumulative_failures': 'max', 'consecutive_failures': 'max'}).reset_index()
+    df = reward_sites.groupby(['patch_number', 'patch_label']).agg({'reward_probability':'min','site_number':'max', "is_choice": 'sum', 'is_reward': 'sum', 'consecutive_rewards': 'max', 'cumulative_failures': 'max', 'consecutive_failures': 'max'}).reset_index()
 
     ax[0][0].set_ylabel('P(reward) \n when leaving')            
     ax[0][0].set_ylim(-0.1,1.1)
@@ -1080,13 +1079,13 @@ def summary_withinsession_values(reward_sites,
     ax[0][0].set_ylabel('P(reward) \n when leaving')            
     ax[0][0].set_ylim(-0.1,1.1)
 
-    sns.scatterplot(df, x='patch_number', hue='patch_label', sizes=(30, 500), y='site_number', ax=ax[0][1], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', hue='patch_label', sizes=(30, 500), y='is_choice', ax=ax[0][1], palette=color_dict_label,  legend=False)
     ax[0][1].set_ylabel('Total stops')            
 
     sns.scatterplot(df, x='patch_number', size="site_number", hue='patch_label', sizes=(30, 500), y='consecutive_rewards', ax=ax[1][0], palette=color_dict_label,  legend=False)
     ax[1][0].set_ylabel('Consecutive rewards')            
 
-    sns.scatterplot(df, x='patch_number', size="site_number", hue='patch_label', sizes=(30, 500), y='cumulative_rewards', ax=ax[1][1], palette=color_dict_label,  legend=False)
+    sns.scatterplot(df, x='patch_number', size="site_number", hue='patch_label', sizes=(30, 500), y='is_reward', ax=ax[1][1], palette=color_dict_label,  legend=False)
     ax[1][1].set_ylabel('Cumulative rewards')            
 
     sns.scatterplot(df, x='patch_number', size="site_number", hue='patch_label', sizes=(30, 500), y='cumulative_failures', ax=ax[2][0], palette=color_dict_label,  legend=False)
