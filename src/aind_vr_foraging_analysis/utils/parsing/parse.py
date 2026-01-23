@@ -113,13 +113,17 @@ class TaskSchemaProperties:
             self.odor_index = "index"
             
         elif (
-            "environment_statistics" in self._data["config"].streams[self.tasklogic].data
+            "environment_statistics" in self._data["config"].streams[self.tasklogic].data or 
+            "task_parameters" in self._data["config"].streams[self.tasklogic].data
         ):
+
             self.environment = "environment_statistics"
             self.reward_specification = "reward_specification"
             self.odor_specifications = "odor_specification"
             self.odor_index = "index"
+
         else:
+            print('here')
             self.environment = "environmentStatistics"
             self.reward_specification = "rewardSpecifications"
             self.odor_specifications = "odorSpecifications"
@@ -629,40 +633,19 @@ def read_harp_bin(file):
     return ret_pd
 
 ## ------------------------------------------------------------------------- ##
-    
+
+def load_device_with_fallback(local_dir: Path, filename: str, url: str):
+    local_path = local_dir / "behavior" / filename / "device.yml"
+    if local_path.exists():
+        return data_io.reader_from_yml(local_path)
+    return data_io.reader_from_url(url)
+
+
 def load_session_data(
     session_path: str | PathLike,
 ) -> Dict[str, data_io.DataStreamSource]:
     _out_dict = {}
     session_path = Path(session_path)
-    
-    HarpBehavior = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"
-    )
-    HarpOlfactometer = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/7f38395f95c164bb55821139f752cd579da8d4af/device.yml"
-    )
-    HarpClock = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/harp-tech/device.clocksynchronizer/main/device.yml"
-    )
-    HarpAnalogInput = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml"
-    )
-    HarpTreadmill = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill-driver/main/device.yml"
-    )
-    HarpSniffsensor = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/device.yml"
-    )
-    HarpLickometer = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/device.yml"
-    )
-    HarpStepperDriver = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml"
-    )
-    HarpEnvironmentSensor = data_io.reader_from_url(
-        r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.environment-sensor/refs/heads/main/device.yml"
-    )
 
     session_path_behavior = session_path
     session_path_config = session_path
@@ -681,6 +664,7 @@ def load_session_data(
         session_path_config = session_path
 
     if "Behavior.harp" in os.listdir(session_path_behavior):
+        HarpBehavior = load_device_with_fallback(session_path, "Behavior.harp", r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml")
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
             path=session_path_behavior / "Behavior.harp",
@@ -690,6 +674,8 @@ def load_session_data(
         )
     elif "Behavior" in os.listdir(session_path_behavior):
         print("Old behavior loading")
+        HarpBehavior = load_device_with_fallback(session_path, "Behavior.harp", r"https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml")
+
         _out_dict["harp_behavior"] = data_io.HarpSource(
             device=HarpBehavior,
             path=session_path_behavior / "Behavior",
@@ -699,6 +685,7 @@ def load_session_data(
         )
 
     if "Olfactometer.harp" in os.listdir(session_path_behavior):
+        HarpOlfactometer = load_device_with_fallback(session_path, "Olfactometer.harp", r"https://raw.githubusercontent.com/harp-tech/device.olfactometer/7f38395f95c164bb55821139f752cd579da8d4af/device.yml")
         _out_dict["harp_olfactometer"] = data_io.HarpSource(
             device=HarpOlfactometer,
             path=session_path_behavior / "Olfactometer.harp",
@@ -708,6 +695,7 @@ def load_session_data(
         )
 
     if "Lickometer.harp" in os.listdir(session_path_behavior):
+        HarpLickometer = load_device_with_fallback(session_path, "Lickometer.harp", r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.lickety-split/main/device.yml")
         _out_dict["harp_lickometer"] = data_io.HarpSource(
             device=HarpLickometer,
             path=session_path_behavior / "Lickometer.harp",
@@ -717,6 +705,7 @@ def load_session_data(
         )
 
     if "SniffDetector.harp" in os.listdir(session_path_behavior):
+        HarpSniffsensor = load_device_with_fallback(session_path, "SniffDetector.harp", r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.sniff-detector/main/device.yml")
         _out_dict["harp_sniffsensor"] = data_io.HarpSource(
             device=HarpSniffsensor,
             path=session_path_behavior / "SniffDetector.harp",
@@ -726,6 +715,8 @@ def load_session_data(
         )
 
     if "StepperDriver.harp" in os.listdir(session_path_behavior):
+        HarpStepperDriver = load_device_with_fallback(session_path, "StepperDriver.harp", r"https://raw.githubusercontent.com/harp-tech/device.stepperdriver/main/device.yml")
+        
         _out_dict["harp_stepperdriver"] = data_io.HarpSource(
             device=HarpStepperDriver,
             path=session_path_behavior / "StepperDriver.harp",
@@ -735,6 +726,7 @@ def load_session_data(
         )
 
     if "ClockGenerator.harp" in os.listdir(session_path_behavior):
+        HarpClock = load_device_with_fallback(session_path, "ClockGenerator.harp", r"https://raw.githubusercontent.com/harp-tech/device.clocksynchronizer/main/device.yml")
         _out_dict["harp_clock"] = data_io.HarpSource(
             device=HarpClock,
             path=session_path_behavior / "ClockGenerator.harp",
@@ -744,16 +736,22 @@ def load_session_data(
         )
 
     if "Treadmill.harp" in os.listdir(session_path_behavior):
+        HarpTreadmill = load_device_with_fallback(session_path, "Treadmill.harp", r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.treadmill-driver/main/device.yml")
+        
         _out_dict["harp_treadmill"] = data_io.HarpSource(
             device=HarpTreadmill, path=session_path_behavior / "Treadmill.harp", name="treadmill", autoload=False
         )
         
     if "EnvironmentSensor.harp" in os.listdir(session_path_behavior):
+        HarpEnvironmentSensor = load_device_with_fallback(session_path, "EnvironmentSensor.harp", r"https://raw.githubusercontent.com/AllenNeuralDynamics/harp.device.environment-sensor/refs/heads/main/device.yml")
+        
         _out_dict["harp_environment_sensor"] = data_io.HarpSource(
             device=HarpEnvironmentSensor, path=session_path_behavior / "EnvironmentSensor.harp", name="environment_sensor", autoload=False
         )
 
     if "AnalogInput.harp" in os.listdir(session_path_behavior):
+        HarpAnalogInput = load_device_with_fallback(session_path, "AnalogInput.harp", r"https://raw.githubusercontent.com/harp-tech/device.analoginput/main/device.yml")
+    
         _out_dict["harp_analog"] = data_io.HarpSource(
             device=HarpAnalogInput,
             path=session_path_behavior / "AnalogInput.harp",
@@ -1218,7 +1216,6 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     )
     active_site.drop(columns=["previous_epoch"], inplace=True)
 
-
     active_site["label"] = active_site["label"].replace("Reward", "OdorSite")
     active_site["label"] = active_site["label"].replace("RewardSite", "OdorSite")
     
@@ -1354,12 +1351,59 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     
     # try:
     print("Reward functions from software events")
+    merged = reward_sites.copy()
     
-    if  "GlobalPatchState" in data['software_events'].streams:
-        patch_stats = pd.json_normalize(data['software_events'].streams.GlobalPatchState.data['data'])
-        patch_stats.index = data['software_events'].streams.GlobalPatchState.data.index
+    if  "PatchStateAtReward" in data['software_events'].streams:
+        # print("Using PatchStateAtReward stream for reward characteristics")
+        patch_stats = pd.json_normalize(data['software_events'].streams.PatchStateAtReward.data['data'])
+        patch_stats.index = data['software_events'].streams.PatchStateAtReward.data.index
         patch_stats.drop(columns=['PatchId'], inplace=True)
         patch_stats.rename(columns={'Amount':'reward_amount', 'Available':'reward_available', 'Probability':'reward_probability'}, inplace=True)
+        
+        # Make sure both DataFrames are sorted by index
+        reward_sites = reward_sites.sort_index()
+        patch_stats = patch_stats.sort_index()
+
+        stopped_sites = reward_sites.loc[reward_sites['is_choice']==True]
+        # Perform merge_asof on the index
+        merged = pd.merge_asof(
+            stopped_sites,
+            patch_stats,
+            left_index=True,
+            right_index=True,
+            direction='forward'
+        )
+        
+        merged = pd.concat([reward_sites.loc[reward_sites['is_choice']==False], merged], axis=0).sort_index()
+        
+    if "GlobalPatchState" in data['software_events'].streams:
+
+            gs = pd.json_normalize(
+                data['software_events'].streams.GlobalPatchState.data['data']
+            )
+            gs.index = data['software_events'].streams.GlobalPatchState.data.index
+            gs = gs.drop(columns=['PatchId']).rename(
+                columns={
+                    'Amount': 'reward_amount',
+                    'Available': 'reward_available',
+                    'Probability': 'reward_probability',
+                }
+            )
+
+            merged_gs = pd.merge_asof(
+                merged.sort_index(),
+                gs.sort_index(),
+                left_index=True,
+                right_index=True,
+                direction='backward',
+                suffixes=('', '_global')
+            )
+
+            for col in ['reward_amount', 'reward_available', 'reward_probability']:
+                merged[col] = merged[col].combine_first(
+                    merged_gs[f"{col}_global"]
+                )
+                
     else:
         # Add the reward characteristics columns
         patch_stats = pd.DataFrame()
@@ -1373,18 +1417,18 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         patch_stats = patch_stats[patch_stats.real_diff >= 0.05]
         patch_stats.drop(columns=['real_diff'], inplace=True)
         
-    # Make sure both DataFrames are sorted by index
-    reward_sites = reward_sites.sort_index()
-    patch_stats = patch_stats.sort_index()
+        # Make sure both DataFrames are sorted by index
+        reward_sites = reward_sites.sort_index()
+        patch_stats = patch_stats.sort_index()
 
-    # Perform merge_asof on the index
-    merged = pd.merge_asof(
-        reward_sites,
-        patch_stats,
-        left_index=True,
-        right_index=True,
-        direction='backward'
-    )
+        # Perform merge_asof on the index
+        merged = pd.merge_asof(
+            reward_sites,
+            patch_stats,
+            left_index=True,
+            right_index=True,
+            direction='backward'
+        )
 
     assert len(merged) == len(reward_sites), "Length mismatch after merge"
 
