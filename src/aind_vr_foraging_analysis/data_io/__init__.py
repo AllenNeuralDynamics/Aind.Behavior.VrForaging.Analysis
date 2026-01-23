@@ -121,18 +121,21 @@ def reader_from_url(
     return DeviceReader(device, reg_readers)
 
 def reader_from_yml(
-    device_yml_url: str, base_path: Optional[PathLike] = Path(".")
+    device_yml_path: PathLike, base_path: Optional[PathLike] = Path(".")
 ) -> DeviceReader:
-    """Reads a device from a URL"""
-    """Example: https://raw.githubusercontent.com/harp-tech/device.behavior/main/device.yml"""
-    response = requests.get(device_yml_url)
-    response.raise_for_status()
-    if response.status_code == 200:
-        _yml_stream = io.TextIOWrapper(io.BytesIO(response.content))
-    else:
-        raise ValueError(f"Failed to fetch device yml from {device_yml_url}")
+    """
+    Reads a device from a local YAML file (Windows path compatible).
+    
+    Example: Z:\\stage\\vr-foraging\\data\\828423\\828423_2025-11-17T224540Z\\behavior\\Behavior.harp\\device.yml
+    """
+    device_yml_path = Path(device_yml_path)
+    if not device_yml_path.exists():
+        raise FileNotFoundError(f"Device YAML file not found at {device_yml_path}")
 
-    device = read_schema(_yml_stream, True)
+    # Open file in text mode
+    with device_yml_path.open("r", encoding="utf-8") as f:
+        device = read_schema(f, True)
+
     reg_readers = {
         name: _create_register_handler(
             device,
@@ -141,7 +144,9 @@ def reader_from_yml(
         )
         for name in device.registers.keys()
     }
+
     return DeviceReader(device, reg_readers)
+
 class HarpSource(DataStreamSource):
     def __init__(
         self,
