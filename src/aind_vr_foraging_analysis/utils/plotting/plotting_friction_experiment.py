@@ -32,7 +32,8 @@ color_dict = {0: color1, 1: color2, 2: color3}
 color_dict_label = {'Ethyl Butyrate': color1, 'Alpha-pinene': color2, 'Alpha pinene': color2, 'Amyl Acetate': color3, 
                     '2-Heptanone' : color2, 'Methyl Acetate': color1, 'Fenchone': color3, '2,3-Butanedione': color4,
                     'Methyl Butyrate': color1, 
-                    '90': color1, '60': color2, '0': color3}
+                    '90': color1, '60': color2, '0': color3, 
+                    'odor_90': color1, 'odor_60': color2, 'odor_0': color3, 'odor_slow': color1, 'odor_fast': color2}
 
 results_path = r'C:\Users\tiffany.ona\OneDrive - Allen Institute\Documents\VR foraging\experiments\batch 4 - manipulating cost of travelling and global statistics\results'
 
@@ -189,6 +190,33 @@ def plot_significance(general_df: pd.DataFrame, axes, variable = 'total_rewards'
     axes.text((x1 + x2) * 0.5, y + h, significance, ha='center', va='bottom', color=col)
     return y + h  # Return the top of the annotation
 
+def across_sessions_one_plot(summary_df, variable, save=False):
+    experiments = summary_df['experiment'].unique()
+    palette = sns.color_palette("tab20", len(experiments))
+    color_dict_experiment = dict(zip(experiments, palette))
+
+    # Create a style dictionary for each odor label
+    odor_labels = summary_df['odor_label'].unique()
+    styles = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
+    style_dict_odor_label = dict(zip(odor_labels, styles))
+    
+    for i, mouse in enumerate(summary_df.mouse.unique()):
+        fig = plt.figure(figsize=(20,6))
+        sns.scatterplot(summary_df.loc[(summary_df.mouse == mouse)], x='session_number', size="site_number", hue='experiment', style='odor_label', sizes=(30, 500), y=variable, 
+                        palette=color_dict_experiment,  alpha=0.7,
+                        markers=style_dict_odor_label)
+
+        plt.xlabel('')
+        plt.title(f'{mouse}')
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=1, title='Experiment')
+        sns.despine()
+        plt.tight_layout()
+        plt.show()
+        if save:
+            fig.savefig(save, format='pdf')
+        plt.close()
+            
+    
 def summary_main_variables(general_df, 
                            experiment: str = None, 
                            condition = 'mouse', 
@@ -214,18 +242,19 @@ def summary_main_variables(general_df,
         plt.suptitle(experiment)
         
     general_df = general_df.loc[(general_df.patch_label != '0')]
-    
+
     if experiment:
         if 'experiment' in general_df.columns:
             general_df = general_df.loc[general_df.experiment == experiment]
         else:
+            print(general_df.stage.unique())
             general_df = general_df.loc[general_df.stage == experiment]
-    
+
     axes = ax[0][0]
     variable = 'total_rewards'
     sns.boxplot(x='patch_label', y=variable,  palette = color_dict_label, data=general_df, order=odor_labels, zorder=10, width =0.7, ax=axes, fliersize=0)
     plot_lines(data = general_df, ax = axes, variable = variable, one_line = condition, order=odor_labels)
-    annotation_top = plot_significance(general_df, axes, variable)
+    annotation_top = plot_significance(general_df, axes, variable, conditions=odor_labels)
     set_clean_yaxis(axes, general_df, variable, annotation_top=annotation_top)
 
     axes.set_ylabel('Rewards collected')
@@ -237,7 +266,7 @@ def summary_main_variables(general_df,
     sns.boxplot(x='patch_label', y=variable,  palette = color_dict_label, data=general_df, order=odor_labels,  zorder=10, width =0.7, ax=axes, fliersize=0)
 
     plot_lines(data = general_df, ax = axes, variable = variable, one_line = condition, order=odor_labels)
-    annotation_top = plot_significance(general_df, axes, variable)
+    annotation_top = plot_significance(general_df, axes, variable, conditions=odor_labels)
     set_clean_yaxis(axes, general_df, variable, annotation_top=annotation_top)
 
     axes.set_ylabel('P(reward) at leaving')
@@ -249,7 +278,7 @@ def summary_main_variables(general_df,
     variable = 'stops'
     sns.boxplot(x='patch_label', y=variable,  palette = color_dict_label, data=general_df, order=odor_labels, zorder=10, width =0.7, ax=axes, fliersize=0)
     plot_lines(data = general_df, ax = axes, variable = variable, one_line = condition, order=odor_labels)
-    annotation_top = plot_significance(general_df, axes, variable)
+    annotation_top = plot_significance(general_df, axes, variable, conditions=odor_labels)
     set_clean_yaxis(axes, general_df, variable, annotation_top=annotation_top)
 
     axes.set_ylabel('Stops')
@@ -261,7 +290,7 @@ def summary_main_variables(general_df,
     variable = 'total_failures'
     sns.boxplot(x='patch_label', y=variable,  palette = color_dict_label, data=general_df, order=odor_labels, zorder=10, width =0.7, ax=axes, fliersize=0)
     plot_lines(data = general_df, ax = axes, variable = variable, one_line = condition, order=odor_labels)
-    annotation_top = plot_significance(general_df, axes, variable)
+    annotation_top = plot_significance(general_df, axes, variable, conditions=odor_labels)
     set_clean_yaxis(axes, general_df, variable, annotation_top=annotation_top)
 
     axes.set_ylabel('Total failures')
@@ -273,7 +302,7 @@ def summary_main_variables(general_df,
     variable = 'consecutive_failures'
     sns.boxplot(x='patch_label', y=variable, palette = color_dict_label, data=general_df, order=odor_labels, zorder=10, width =0.7, ax=axes, fliersize=0)
     plot_lines(data = general_df, ax = axes, variable = variable, one_line = condition, order=odor_labels)
-    annotation_top = plot_significance(general_df, axes, variable)
+    annotation_top = plot_significance(general_df, axes, variable, conditions=odor_labels)
     set_clean_yaxis(axes, general_df, variable, annotation_top=annotation_top)
     axes.set_ylabel('Consecutive failures')
     axes.set_xticks([0, 1])
@@ -294,7 +323,7 @@ def summary_main_variables(general_df,
     variable = 'patch_number'
     sns.boxplot(x='patch_label', y=variable, palette = color_dict_label, data=general_df, order=odor_labels, zorder=10, width =0.7, ax=axes, fliersize=0)
     plot_lines(data = general_df, ax = axes, variable = variable, one_line = condition, order=odor_labels)
-    annotation_top = plot_significance(general_df, axes, variable)
+    annotation_top = plot_significance(general_df, axes, variable, conditions=odor_labels)
     set_clean_yaxis(axes, general_df, variable, annotation_top=annotation_top)
     axes.set_ylabel('# patches')
     axes.set_xticks([0,1], ['Odor 1', 'Odor 2'])
@@ -303,10 +332,10 @@ def summary_main_variables(general_df,
     sns.despine()
     plt.tight_layout()
     if save:
-        fig.savefig(save, format='pdf')
+        plt.savefig(save, format='pdf')
     else:
-        plt.savefig(results_path+'/summary_mouse.pdf', dpi=300, bbox_inches='tight')
-    plt.show()
+        plt.show()
+        plt.close()
 
 experiments_palette = {
     'data_collection': '#1f77b4',  # Blue
@@ -592,10 +621,10 @@ def plot_experiments_comparison_with_odors(ax, summary_df, variable,
     - Filters out rows where 'patch_label' is '0'.
     """
     
-    labels_dict = {'data_collection': 'Data collection', 'control': 'Control', 'friction_low': 'Friction low', 'friction_med': 'Friction med', 'friction_high': 'Friction high', 'distance_short': 'Dis. short', 'distance_long': 'Dis. long', 'distance_extra_short': 'Ext. short', 'distance_extra_long': 'Ext. long', 'odor_60': 'Odor 60', 'odor_90': 'Odor 90'}
+    labels_dict = {'data_collection': 'Data collection', 'control': 'Control', 'friction_low': 'Friction low', 'friction_med': 'Friction med', 'friction_high': 'Friction high', 'distance_short': 'Dis. short', 'distance_long': 'Dis. long', 'distance_extra_short': 'Ext. short', 'distance_extra_long': 'Ext. long', 'odor_60': 'Odor 60', 'odor_90': 'Odor 90', 'odor_0': 'Odor 0', "rewards_offset": "R_offset", "rewards_rate": "R_rate", "stops_offset": "S_offset", "stops_rate": "S_rate"}
     
     
-    summary_df = summary_df.loc[summary_df.patch_label != '0']
+    summary_df = summary_df.loc[summary_df.patch_label != 'odor_0']
 
     # Adjust the linewidth or dodge parameter based on experiment_width
     sns.boxplot(x='experiment', y=variable, hue='patch_label',
@@ -612,7 +641,7 @@ def plot_experiments_comparison_with_odors(ax, summary_df, variable,
     ax.set_xlabel('')
     if variable == 'reward_probability':
         ax.set_yticks([0, 0.2, 0.4, 0.6])
-        ax.set_ylim(0, 0.6)
+        ax.set_ylim(0, 0.8)
         ax.set_ylabel('P(reward) when leaving')
     if variable == 'stops':
         ax.set_ylim(0, 20)
