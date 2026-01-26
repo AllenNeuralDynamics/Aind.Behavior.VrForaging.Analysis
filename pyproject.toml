@@ -15,7 +15,7 @@ dynamic = ["version"]
 
 dependencies = [
   "harp-python>=0.4.1",
-  "aind-behavior-vr-foraging@git+https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging@v0.5.0",
+  "aind-behavior-vr-foraging@git+https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging@v0.6.4",
   "contraqctor@git+https://github.com/AllenNeuralDynamics/contraqctor@v0.4.3",
   "pandas",
   "numpy<2.0",
