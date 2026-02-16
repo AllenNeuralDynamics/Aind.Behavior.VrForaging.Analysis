@@ -595,9 +595,7 @@ def speed_traces_value(
             if n_odors == 1:
                 ax[i].set_xlabel("Time after odor onset (s)")
             else:
-                ax[len(trial_summary.patch_label.unique()) - 1][j].set_xlabel(
-                    "Time after odor onset (s)"
-                )
+                ax[-1, i].set_xlabel("Time after odor onset (s)")
 
             ax1[i].set_ylim(-10, 80)
             ax1[i].set_xlim(window)
