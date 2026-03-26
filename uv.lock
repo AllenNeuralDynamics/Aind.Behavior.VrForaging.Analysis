@@ -42,8 +42,8 @@ wheels = [
 
 [[package]]
 name = "aind-behavior-vr-foraging"
-version = "0.6.3"
-source = { git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging?rev=v0.6.3#ca02dddd0dfb00eda87b6400b5e276624003c2ff" }
+version = "0.6.7"
+source = { git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging?rev=v0.6.7#458531a0940a4c3c870d5591d6aa41255217ab97" }
 dependencies = [
     { name = "aind-behavior-services" },
     { name = "pydantic-settings" },
@@ -76,10 +76,10 @@ linters = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aind-behavior-vr-foraging", git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging?rev=v0.6.3" },
+    { name = "aind-behavior-vr-foraging", git = "https://github.com/AllenNeuralDynamics/Aind.Behavior.VrForaging?rev=v0.6.7" },
     { name = "black", marker = "extra == 'linters'" },
     { name = "codespell", marker = "extra == 'linters'" },
-    { name = "contraqctor", git = "https://github.com/AllenNeuralDynamics/contraqctor?rev=v0.4.3" },
+    { name = "contraqctor", git = "https://github.com/AllenNeuralDynamics/contraqctor?rev=v0.5.3" },
     { name = "dotmap" },
     { name = "flake8", marker = "extra == 'linters'" },
     { name = "harp-python", specifier = ">=0.4.1" },
@@ -463,11 +463,12 @@ wheels = [
 
 [[package]]
 name = "contraqctor"
-version = "0.4.3"
-source = { git = "https://github.com/AllenNeuralDynamics/contraqctor?rev=v0.4.3#083d428d752cd53ea4819edf31c0f5a9a1ef544d" }
+version = "0.5.3"
+source = { git = "https://github.com/AllenNeuralDynamics/contraqctor?rev=v0.5.3#94664b4c7a0eba6e15d130186f3e8ae2f2067009" }
 dependencies = [
     { name = "aind-behavior-services" },
     { name = "harp-python" },
+    { name = "jinja2" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "opencv-python" },
@@ -476,6 +477,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
+    { name = "scipy" },
     { name = "semver" },
 ]
 
