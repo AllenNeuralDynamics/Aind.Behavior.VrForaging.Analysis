@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import math 
 from scipy.stats import ttest_rel
+from scipy.stats import wilcoxon, mannwhitneyu
 
 sns.set_context('talk')
 
@@ -159,8 +160,8 @@ def plot_significance(general_df: pd.DataFrame, axes, variable = 'total_rewards'
     - Adjusts annotation position for the 'reward_probability' variable.
     """
         # Perform statistical test and add significance annotations
-    group1 = general_df.loc[general_df[group]== conditions[0], variable]
-    group2 = general_df.loc[general_df[group] == conditions[1], variable]
+    group1 = general_df.loc[general_df[group] == conditions[0]].sort_values('mouse')[variable].dropna()
+    group2 = general_df.loc[general_df[group] == conditions[1]].sort_values('mouse')[variable].dropna()
     
     # Perform t-test
     try:
@@ -189,6 +190,39 @@ def plot_significance(general_df: pd.DataFrame, axes, variable = 'total_rewards'
     axes.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.5, c=col)
     axes.text((x1 + x2) * 0.5, y + h, significance, ha='center', va='bottom', color=col)
     return y + h  # Return the top of the annotation
+
+def plot_significance_nonnormal(general_df: pd.DataFrame, axes, variable='total_rewards', group='patch_label', conditions=['90', '60']):
+    
+    group1 = general_df.loc[general_df[group] == conditions[0]].sort_values('mouse')[variable].dropna()
+    group2 = general_df.loc[general_df[group] == conditions[1]].sort_values('mouse')[variable].dropna()
+
+    # Paired Wilcoxon signed-rank test (more robust than paired t-test for small n + outliers)
+    try:
+        stat, p_value = wilcoxon(group1.values, group2.values, alternative='two-sided',  method='exact')
+    except Exception as e:
+        print(f'Wilcoxon failed ({e}), falling back to Mann-Whitney')
+        stat, p_value = mannwhitneyu(group1, group2, alternative='two-sided')
+
+    print(f'{variable} p-value: {p_value}')
+
+    x1, x2 = 0, 1
+    y, h, col = general_df[variable].max() + 1, 0.5, 'k'
+    if variable == 'reward_probability':
+        y = 0.7
+        h = 0.025
+
+    if p_value < 0.001:
+        significance = "***"
+    elif p_value < 0.01:
+        significance = "**"
+    elif p_value < 0.05:
+        significance = "*"
+    else:
+        significance = "ns"
+
+    axes.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.5, c=col)
+    axes.text((x1 + x2) * 0.5, y + h, significance, ha='center', va='bottom', color=col)
+    return y + h
 
 def across_sessions_one_plot(summary_df, variable, save=False):
     experiments = summary_df['experiment'].unique()
@@ -235,7 +269,7 @@ def summary_main_variables(general_df,
     None
     """
             
-    fig,ax = plt.subplots(2,3, figsize=(9,8))
+    fig,ax = plt.subplots(2,3, figsize=(7,6))
     if condition == 'session_n':
         plt.suptitle(f'{general_df.mouse.iloc[0]} {experiment}')
     else:
@@ -250,6 +284,7 @@ def summary_main_variables(general_df,
             print(general_df.stage.unique())
             general_df = general_df.loc[general_df.stage == experiment]
 
+    
     axes = ax[0][0]
     variable = 'total_rewards'
     sns.boxplot(x='patch_label', y=variable,  palette = color_dict_label, data=general_df, order=odor_labels, zorder=10, width =0.7, ax=axes, fliersize=0)
@@ -639,6 +674,7 @@ def plot_experiments_comparison_with_odors(ax, summary_df, variable,
     ax.set_xticks(np.arange(len(experiments)), labels_plot, rotation = 45, ha='right')
     ax.hlines(summary_df.loc[(summary_df.experiment == mean_line)][variable].mean(), -0.5, len(experiments)-0.5, linestyles='dashed', alpha=0.5, color='grey')
     ax.set_xlabel('')
+    ax.get_legend().remove()
     if variable == 'reward_probability':
         ax.set_yticks([0, 0.2, 0.4, 0.6])
         ax.set_ylim(0, 0.8)
