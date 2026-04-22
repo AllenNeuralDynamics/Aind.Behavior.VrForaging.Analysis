@@ -1150,7 +1150,7 @@ def trial_collection(
         DataFrame containing the snippets of speed traces aligned to different epochs
 
     """
-    trial_summary = pd.DataFrame()
+    trial_list = []
     samples_per_second = np.around(np.mean(continuous_data.index.diff().dropna()), 3)
     
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
@@ -1165,7 +1165,7 @@ def trial_collection(
             window[0] = row['time_since_entry']
             window[1] = row['exit_epoch']
         elif cropped_to_length == 'epoch':
-            window[0] = -2
+            window[0] =  row['start_time'] - row[aligned]
             window[1] = row['duration_epoch']
         else:
             pass
@@ -1219,9 +1219,13 @@ def trial_collection(
         for column in reward_sites.columns:
             trial_average[column] = np.repeat(row[column], len(trial))
         
-        trial_summary = pd.concat([trial_summary, trial_average], ignore_index=True)
-
-    return trial_summary
+        trial_list.append(trial_average)
+    if (len(trial_list) == 0):
+        print('No trials collected, check the parameters of the function')
+        return pd.DataFrame(columns=['times', 'time_reference', taken_col] + list(reward_sites.columns))
+    else:
+        trial_summary = pd.concat(trial_list, ignore_index=True)
+        return trial_summary
 
 
 def trial_collection_distance(
@@ -1284,7 +1288,6 @@ def trial_collection_distance(
             trial = continuous_data[(continuous_data['Position'] >= row[aligned] + window[0]) & (continuous_data['Position'] < row[aligned] + window[1])][taken_col]
             trial.index -= row[aligned]
             time_reference = row[aligned]
-            print(trial)
         else:
             trial = continuous_data.loc[
                 start_reward + window[0] : start_reward + window[1], taken_col
@@ -1352,8 +1355,7 @@ def raster_with_velocity(
     test_df = active_site.groupby('patch_number').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
-    
-    if len(test_df) <= 1:
+    if test_df.patch_number.nunique() <= 1:
         print('Not enough patches to plot raster with velocity')
         return
     
