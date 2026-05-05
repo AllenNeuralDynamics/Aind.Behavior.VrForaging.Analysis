@@ -24,6 +24,7 @@ dependencies = [
   "matplotlib",
   "seaborn==0.12.2",
   "scikit-learn",
+  "scipy",
   "statsmodels",
   "opencv-python"
 ]
