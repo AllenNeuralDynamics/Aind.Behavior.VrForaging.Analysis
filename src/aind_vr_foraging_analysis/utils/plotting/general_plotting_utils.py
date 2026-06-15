@@ -1,4 +1,5 @@
 # %%
+from itertools import cycle
 import sys
 
 sys.path.append("../src/")
@@ -17,6 +18,16 @@ from matplotlib.lines import Line2D
 def format_func(value, tick_number):
     return f"{value:.0f}"
 
+color1='#d95f02'
+color2='#1b9e77'
+color3='#7570b3'
+color4='#e7298a'
+color5= 'yellow'
+color6 = '#66a61e'
+color7 = "#1e8ba6"
+color8 = "#a61e1e"
+color9 = "#271ea6"
+color10 = "#225c64"
 
 sns.set_context("talk")
 
@@ -184,141 +195,158 @@ def speed_traces_epochs(
         plt.show()
         plt.close(fig)
 
-def segmented_raster_vertical_reversal(reward_sites: pd.DataFrame,
-    color_dict_label: dict = {
-        "Ethyl Butyrate": "#d95f02",
-        "Alpha-pinene": "#1b9e77",
-        "Amyl Acetate": "#7570b3"
-    }, 
-    save = False):
-    
-    # Define markers and offsets
+def segmented_raster_vertical(
+    reward_sites: pd.DataFrame,
+    color_dict_label: dict = None,
+    save=False
+):
+    import colorsys
 
-    available_markers = ['^', 's', 'X', 'P', 'D', '*', 'o', 'v', '>']  # Add more if needed
-    available_offsets = [-0.25, -0.5, -0.75, -1.0, -1.25]
+    def get_base_label(label):
+        return label.split('_')[0] if '_' in str(label) else label
 
-    unique_labels = reward_sites["odor_label"].unique()
+    def generate_fallback_colors(n):
+        fallback = []
+        hue_step = 1.0 / (n + 1)
+        for i in range(n):
+            r, g, b = colorsys.hsv_to_rgb((i * hue_step) % 1.0, 0.65, 0.85)
+            fallback.append(f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}")
+        return fallback
 
-    # Dynamically assign markers and y-offsets
-    marker_dict_label = {}
-    y_offset_dict = {}
+    # Drop rows with NaN in critical columns
+    reward_sites = reward_sites.dropna(subset=['patch_number', 'site_number', 'block', 'patch_label'])
+    reward_sites['patch_number'] = reward_sites['patch_number'].astype(int)
+    reward_sites['site_number'] = reward_sites['site_number'].astype(int)
+    reward_sites['block'] = reward_sites['block'].astype(int)
 
-    for i, label in enumerate(unique_labels):
-        marker_dict_label[label] = available_markers[i % len(available_markers)]
-        y_offset_dict[label] = available_offsets[i % len(available_offsets)]
+    is_reversal = reward_sites.block.nunique() > 1
 
-    patch_number = len(reward_sites.patch_number.unique())
-    number_odors = len(reward_sites["odor_label"].unique())
+    # --- Color setup: keyed by base patch_label ---
+    _color_pool_list = [color1, color2, color3, color4, color5, color6, color7, color8, color9, color10]
 
-    # Make second row proportional to the number of odors
-    list_odors = []
-    for odor in reward_sites.odor_label.unique():
-        list_odors.append(
-            reward_sites.loc[reward_sites.odor_label == odor].patch_number.nunique()
-        )
-    grid = (np.array(list_odors) / patch_number) * number_odors
-    width = patch_number/8
-    if width < 6:
-        width = 14
-    fig = plt.figure(figsize=(width, 8))
-    gs = GridSpec(2, number_odors, width_ratios=grid)
+    if color_dict_label is None:
+        unique_base_patch_labels = pd.Series(reward_sites["patch_label"].unique()).apply(get_base_label).unique()
+        overflow = len(unique_base_patch_labels) - len(_color_pool_list)
+        if overflow > 0:
+            _color_pool_list += generate_fallback_colors(overflow)
+        _color_pool = cycle(_color_pool_list)
+        color_dict_label = {label: next(_color_pool) for label in unique_base_patch_labels}
 
-    for index, row in reward_sites.iterrows():
-        ax1 = plt.subplot(gs[0, 0:number_odors])
-        if row["is_reward"] == 1 and row["is_choice"] == True:
-            color = "steelblue"
+    # --- Marker/offset setup: keyed by base odor_label (only for reversal) ---
+    if is_reversal:
+        available_markers = ['^', 's', 'X', 'P', 'D', '*', 'o', 'v', '>']
+        available_offsets = [-0.25, -0.5, -0.75, -1.0, -1.25]
+        unique_base_odors = reward_sites["odor_label"].apply(get_base_label).unique()
+        marker_dict_label = {
+            odor: available_markers[i % len(available_markers)]
+            for i, odor in enumerate(unique_base_odors)
+        }
+        y_offset_dict = {
+            odor: available_offsets[i % len(available_offsets)]
+            for i, odor in enumerate(unique_base_odors)
+        }
+
+    # --- Shared bar color logic ---
+    def get_bar_color(row, is_reversal):
+        if row["is_reward"] == 1 and row["is_choice"]:
+            return "steelblue"
         elif row["is_reward"] == 0 and row["is_choice"]:
-            if row['patch_label'] == 'N':
-                color = "crimson"
-            elif row['patch_label'] == 'D' and row['site_number'] >= 3:
-                color = "crimson"
-            elif row['patch_label'] == 'S' and row['site_number'] >= 1:
-                color = "crimson"
-            else:
-                color = "pink"
-        else:
-            if row['patch_label'] in ['N', 'D', 'S']:
+            if is_reversal:
                 if row['patch_label'] == 'N':
-                    color = "black"
+                    return "crimson"
                 elif row['patch_label'] == 'D' and row['site_number'] >= 3:
-                    color = "black"
+                    return "crimson"
                 elif row['patch_label'] == 'S' and row['site_number'] >= 1:
-                    color = "black"
-                else:
-                    color = "lightgrey"
+                    return "crimson"
+                return "pink"
             else:
-                color = "lightgrey"
+                if row["reward_available"] == 0 or row["reward_probability"] <= 0:
+                    return "crimson"
+                return "pink"
+        else:
+            if is_reversal:
+                if row['patch_label'] == 'N':
+                    return "black"
+                elif row['patch_label'] == 'D' and row['site_number'] >= 3:
+                    return "black"
+                elif row['patch_label'] == 'S' and row['site_number'] >= 1:
+                    return "black"
+                return "lightgrey"
+            else:
+                if row["reward_available"] == 0 or row["reward_probability"] <= 0:
+                    return "black"
+                return "lightgrey"
 
-        # ax1.barh(int(row['patch_number']), left=row['site_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
+    # --- Layout ---
+    patch_number = len(reward_sites.patch_number.unique())
+
+    if is_reversal:
+        group_col = "odor_label"
+        reward_sites['_base_odor'] = reward_sites['odor_label'].apply(get_base_label)
+        group_col_bottom = '_base_odor'
+        number_groups = len(reward_sites[group_col_bottom].unique())
+        list_counts = [
+            reward_sites.loc[reward_sites[group_col_bottom] == g].patch_number.nunique()
+            for g in reward_sites[group_col_bottom].unique()
+        ]
+    else:
+        group_col = "patch_label"
+        group_col_bottom = "patch_label"
+        number_groups = len(reward_sites[group_col].unique())
+        list_counts = [
+            reward_sites.loc[reward_sites[group_col] == g].patch_number.nunique()
+            for g in reward_sites[group_col].unique()
+        ]
+
+    grid = (np.array(list_counts) / patch_number) * number_groups
+    width = max(patch_number / 8, 18)
+
+    fig = plt.figure(figsize=(width, 10))
+    gs = GridSpec(2, number_groups, width_ratios=grid)
+
+    # --- Top panel ---
+    for index, row in reward_sites.iterrows():
+        ax1 = plt.subplot(gs[0, 0:number_groups])
+        color = get_bar_color(row, is_reversal)
+
         ax1.bar(
             int(row["patch_number"]),
             bottom=row["site_number"],
-            height=1,
-            width=1,
-            color=color,
-            edgecolor="darkgrey",
-            linewidth=0.5,
+            height=1, width=1,
+            color=color, edgecolor="darkgrey", linewidth=0.5,
         )
-        ax1.set_xlim(-1, max(reward_sites.patch_number) + 1)          
+        ax1.set_xlim(-1, max(reward_sites.patch_number) + 1)
         ax1.set_xlabel("Patch number")
         ax1.set_ylabel("Site number")
 
-        # ax1.bar(int(row['patch_number']), bottom = -1, height=0.5, width = 1, color=patch_color, edgecolor='black', linewidth=0.5)
-        label = row["patch_label"]
-        odor = row["odor_label"]
-        marker = marker_dict_label.get(odor, 'o')
-        y_offset = y_offset_dict.get(odor, -0.25)
+        if is_reversal:
+            ax1.scatter(
+                row["patch_number"],
+                y_offset_dict.get(get_base_label(row["odor_label"]), -0.25),  # offset by odor
+                color=color_dict_label.get(get_base_label(row["patch_label"]), 'grey'),  # color by patch type
+                marker=marker_dict_label.get(get_base_label(row["odor_label"]), 'o'),    # marker by odor
+                s=35, edgecolor="black", linewidth=0.0,
+            )
+        else:
+            ax1.scatter(
+                row["patch_number"], -0.25,
+                color=color_dict_label.get(get_base_label(row["patch_label"]), 'grey'),
+                marker="^", s=35, edgecolor="black", linewidth=0.0,
+            )
 
-        ax1.scatter(
-            row["patch_number"],
-            y_offset,
-            color=color_dict_label[label],
-            marker=marker,
-            s=35,
-            edgecolor="black",
-            linewidth=0.0,
-        )
-
-    if reward_sites.block.nunique() > 1:
+    # Block change lines on top panel
+    if is_reversal:
         change_indices = reward_sites.loc[reward_sites.block.diff() != 0, 'patch_number'].values[1:]
-        for change_index in change_indices:
-            ax1.axvline(change_index - 0.5, color='black', linestyle='--', label='Change')
+        for ci in change_indices:
+            ax1.axvline(ci - 0.5, color='black', linestyle='--')
+    else:
+        if reward_sites.block.nunique() > 1:
+            change_index = reward_sites[reward_sites.block.diff() != 0]['patch_number'].values[1]
+            ax1.axvline(change_index - 0.5, color='black', linestyle='--')
 
-    # Get unique patch_label and odor_label values
-    unique_patch_labels = reward_sites["patch_label"].unique()
-    unique_odor_labels = reward_sites["odor_label"].unique()
+    ax1.set_ylim(-1, max(reward_sites.site_number) + 1)
 
-    # Marker shape for odor_label (black)
-    odor_handles = [
-        Line2D(
-            [0], [0],
-            marker=marker_dict_label.get(odor, 'o'),
-            linestyle='None',
-            color='black',
-            markerfacecolor='black',
-            markeredgecolor='black',
-            label=odor,
-            markersize=8
-        )
-        for odor in unique_odor_labels
-    ]
-
-    # Marker color for patch_label (S/N/D) — fixed shape (e.g., 's')
-    patch_label_handles = [
-        Line2D(
-            [0], [0],
-            marker='o',
-            linestyle='None',
-            color='w',
-            markerfacecolor=color_dict_label[label],
-            markeredgecolor='black',
-            label=label,
-            markersize=8
-        )
-        for label in ['S', 'N', 'D'] if label in unique_patch_labels
-    ]
-
-    # Bar color legend (reward/choice states)
+    # --- Legend ---
     bar_handles = [
         mpatches.Patch(color="steelblue", label="Harvest, rewarded"),
         mpatches.Patch(color="crimson", label="Harvest, no reward, depleted"),
@@ -327,43 +355,75 @@ def segmented_raster_vertical_reversal(reward_sites: pd.DataFrame,
         mpatches.Patch(color="black", label="Leave, depleted"),
     ]
 
-    # Combine everything
-    legend_handles = odor_handles + patch_label_handles + bar_handles
+    if is_reversal:
+        # Markers represent odor type
+        odor_handles = [
+            Line2D([0], [0],
+                   marker=marker_dict_label.get(odor, 'o'),
+                   linestyle='None',
+                   color='black', markerfacecolor='black',
+                   label=odor, markersize=8)
+            for odor in unique_base_odors
+        ]
+        # Colors represent patch type
+        patch_handles = [
+            Line2D([0], [0],
+                   marker='o', linestyle='None', color='w',
+                   markerfacecolor=color_dict_label.get(label, 'grey'),
+                   markeredgecolor='black',
+                   label=label, markersize=8)
+            for label in pd.Series(reward_sites["patch_label"].unique()).apply(get_base_label).unique()
+        ]
+        legend_handles = odor_handles + patch_handles + bar_handles
+    else:
+        legend_handles = [
+            mpatches.Patch(
+                color=color_dict_label.get(get_base_label(label), 'grey'),
+                label=str(label)
+            )
+            for label in reward_sites["patch_label"].unique()
+        ] + bar_handles
 
-    # Create subplots dynamically in the bottom row (row index 1)
-    unique_patches = reward_sites["odor_label"].unique()
-    axes = [plt.subplot(gs[1, i]) for i in range(number_odors)]
+    # --- Bottom panels ---
+    unique_groups = reward_sites[group_col_bottom].unique()
+    axes = [plt.subplot(gs[1, i]) for i in range(number_groups)]
 
-    # Loop over each odor and axis
-    for ax, odor_label in zip(axes, unique_patches):
-        selected_sites = reward_sites[reward_sites.odor_label == odor_label]
+    for ax, group_val in zip(axes, unique_groups):
+        selected_sites = reward_sites[reward_sites[group_col_bottom] == group_val]
         previous_patch = None
-        value = 0  # running x-axis index
+        value = 0
 
-        # Keep track of block number and where each patch is on the x-axis
-        patch_positions = []  # (value, block)
-        for patch_number in selected_sites['patch_number'].unique():
-            block = selected_sites[selected_sites['patch_number'] == patch_number]['block'].iloc[0]
-            patch_positions.append((value, block))
-            value += 1
+        if is_reversal:
+            # Track patch positions for block change lines
+            patch_positions = []
+            for pn in selected_sites['patch_number'].unique():
+                block = selected_sites[selected_sites['patch_number'] == pn]['block'].iloc[0]
+                patch_positions.append((value, block))
+                value += 1
 
-        # Draw vertical lines between blocks
-        for i in range(1, len(patch_positions)):
-            val_prev, block_prev = patch_positions[i - 1]
-            val_curr, block_curr = patch_positions[i]
-            if block_curr != block_prev:
-                # Add line at transition
-                ax.axvline(val_curr + 0.5, color='black', linestyle='--',
-                        label='Block Change' if i == 1 else None)
+            for i in range(1, len(patch_positions)):
+                val_prev, block_prev = patch_positions[i - 1]
+                val_curr, block_curr = patch_positions[i]
+                if block_curr != block_prev:
+                    ax.axvline(val_curr + 0.5, color='black', linestyle='--')
+                    for offset, block in zip([-1, 1], [block_prev, block_curr]):
+                        label_data = selected_sites[selected_sites['block'] == block]['patch_label'].unique()
+                        if len(label_data):
+                            ypos = (reward_sites.site_number.max() + 1) * 0.75
+                            ax.text(
+                                val_curr + offset, ypos,
+                                s=get_base_label(label_data[0])[0].upper(),
+                                color=color_dict_label.get(get_base_label(label_data[0]), 'grey'),
+                                ha='right' if offset < 0 else 'left',
+                                fontsize=9
+                            )
+        else:
+            if selected_sites.block.nunique() > 1:
+                change_index = selected_sites[
+                    selected_sites.block == selected_sites.block.unique()[0]
+                ].patch_number.nunique()
+                ax.axvline(change_index, color='black', linestyle='--')
 
-                # Add labels for each side
-                for offset, block in zip([-1, 1], [block_prev, block_curr]):
-                    label_data = selected_sites[selected_sites['block'] == block]['patch_label'].unique()
-                    if len(label_data):
-                        ax.text(val_curr + offset, y=6, s=label_data[0], color=color_dict_label[label_data[0]],
-                                ha='right' if offset < 0 else 'left')
-
-        # Plot bars per site
         value = 0
         previous_patch = None
         for _, row in selected_sites.iterrows():
@@ -371,201 +431,40 @@ def segmented_raster_vertical_reversal(reward_sites: pd.DataFrame,
                 value += 1
                 previous_patch = row['patch_number']
 
-            # Choose bar color
-            if row["is_reward"] == 1 and row["is_choice"]:
-                color = "steelblue"
-            elif row["is_reward"] == 0 and row["is_choice"]:
-                if row['patch_label'] == 'N':
-                    color = "crimson"
-                elif row['patch_label'] == 'D' and row['site_number'] >= 3:
-                    color = "crimson"
-                elif row['patch_label'] == 'S' and row['site_number'] >= 1:
-                    color = "crimson"
-                else:
-                    color = "pink"
-            else:
-                if row['patch_label'] in ['N', 'D', 'S']:
-                    if row['patch_label'] == 'N':
-                        color = "black"
-                    elif row['patch_label'] == 'D' and row['site_number'] >= 3:
-                        color = "black"
-                    elif row['patch_label'] == 'S' and row['site_number'] >= 1:
-                        color = "black"
-                    else:
-                        color = "lightgrey"
-                else:
-                    color = "lightgrey"
-
-            # Plot bar
+            color = get_bar_color(row, is_reversal)
             ax.bar(
-                value,
-                bottom=row["site_number"],
-                height=1,
-                width=1,
-                color=color,
-                edgecolor="darkgrey",
-                linewidth=0.5,
+                value, bottom=row["site_number"],
+                height=1, width=1,
+                color=color, edgecolor="darkgrey", linewidth=0.5,
             )
 
-        # Formatting
+        if not is_reversal:
+            ax.set_title(group_val, color=color_dict_label.get(get_base_label(group_val), 'grey'))
+
         ax.set_xlim(-1, value + 2)
         ax.set_ylim(-0.5, reward_sites.site_number.max() + 1)
-        ax.set_ylabel("Site number")
-        ax.set_xlabel("Patch number")
-        # ax.set_title(odor_label)
-        
+        ax.set_xlabel("Patch #", fontsize=9)
+        ax.tick_params(axis='x', labelsize=8)
 
-    plt.legend(handles=legend_handles, loc='best', bbox_to_anchor=(1.05, 1), fontsize=12, ncol=1)
-    # plt.suptitle(reward_sites.session.unique()[0])
-
-    fig.tight_layout()
-    sns.despine()
-    
-    if save:
-        save.savefig(fig)
-        plt.close(fig)
-    else:
-        plt.show()
-
-def segmented_raster_vertical(
-    reward_sites: pd.DataFrame,
-    save: bool = False,
-    color_dict_label: dict = {
-        "Ethyl Butyrate": "#d95f02",
-        "Alpha-pinene": "#1b9e77",
-        "Amyl Acetate": "#7570b3",
-    },
-):
-
-    patch_number = len(reward_sites.patch_number.unique())
-    number_odors = len(reward_sites["patch_label"].unique())
-
-    # Make second row proportional to the number of odors
-    list_odors = []
-    for odor in reward_sites.patch_label.unique():
-        list_odors.append(
-            reward_sites.loc[reward_sites.patch_label == odor].patch_number.nunique()
-        )
-    grid = (np.array(list_odors) / patch_number) * number_odors
-
-    fig = plt.figure(figsize=(14, 8))
-    gs = GridSpec(2, number_odors, width_ratios=grid)
-
-    for index, row in reward_sites.iterrows():
-        ax1 = plt.subplot(gs[0, 0:number_odors])
-        if row["is_reward"] == 1 and row["is_choice"] == True:
-            color = "steelblue"
-        elif row["is_reward"] == 0 and row["is_choice"] == True:
-            color = "pink"
-            if row["reward_available"] == 0 or row["reward_probability"] <= 0:
-                color = "crimson"
-        else:
-            if row["reward_available"] == 0 or row["reward_probability"] <= 0:
-                color = "black"
-            else:
-                color = "lightgrey"
-
-        # ax1.barh(int(row['patch_number']), left=row['site_number'], height=1, width=1, color=color, edgecolor='darkgrey', linewidth=0.5)
-        ax1.bar(
-            int(row["patch_number"]),
-            bottom=row["site_number"],
-            height=1,
-            width=1,
-            color=color,
-            edgecolor="darkgrey",
-            linewidth=0.5,
-        )
-        ax1.set_xlim(-1, max(reward_sites.patch_number) + 1)          
-        ax1.set_xlabel("Patch number")
-        ax1.set_ylabel("Site number")
-
-        # ax1.bar(int(row['patch_number']), bottom = -1, height=0.5, width = 1, color=patch_color, edgecolor='black', linewidth=0.5)
-        ax1.scatter(
-            row["patch_number"],
-            -0.25,
-            color=color_dict_label[row["patch_label"]],
-            marker="^",
-            s=35,
-            edgecolor="black",
-            linewidth=0.0,
-        )
-
-    if reward_sites.block.nunique() > 1:
-        change_index = reward_sites[reward_sites.block.diff() != 0]['patch_number'].values[1]
-        ax1.axvline(change_index-0.5, color='black', linestyle='--', label='Change')
-            
-    odors = []
-    for odor in reward_sites["patch_label"].unique():
-        odors.append(
-            mpatches.Patch(
-                color=color_dict_label[odor],
-                label=(
-                    str(odor)
-                ),
-            )
-        )
-
-    label_2 = mpatches.Patch(color="steelblue", label="Harvest, rewarded")
-    label_3 = mpatches.Patch(color="crimson", label="Harvest, no reward, depleted")
-    label_4 = mpatches.Patch(color="lightgrey", label="Leave, not depleted")
-    label_5 = mpatches.Patch(color="black", label="Leave, depleted")
-    label_6 = mpatches.Patch(color="pink", label="Harvest, no reward, probabilitic")
-
-    odors.extend([label_2, label_3, label_6, label_4, label_5])
-    ax1.set_ylim(-1, max(reward_sites.site_number) + 1)
-
-    # Create subplots dynamically in the bottom row (row index 1)
-    unique_patches = reward_sites["patch_label"].unique()
-    axes = [plt.subplot(gs[1, i]) for i in range(number_odors)]
-
-    # Now loop over each odor and axis
-    for ax, patch_label in zip(axes, unique_patches):
-        selected_sites = reward_sites.loc[reward_sites.patch_label == patch_label]
-        previous_active = 0
-        value = 0
-        if selected_sites.block.nunique() > 1:
-            change_index = selected_sites[selected_sites.block == selected_sites.block.unique()[0]].patch_number.nunique()
-            ax.axvline(change_index, color='black', linestyle='--', label='Change')
-        for index, row in selected_sites.iterrows():
-            # Choose the color of the site
-            if row["is_reward"] == 1 and row["is_choice"] == True:
-                color = "steelblue"
-            elif row["is_reward"] == 0 and row["is_choice"] == True:
-                color = "pink"
-                if row["reward_available"] == 0 or row["reward_probability"] <= 0:
-                    color = "crimson"
-            else:
-                if row["reward_available"] == 0 or row["reward_probability"] <= 0:
-                    color = "black"
-                else:
-                    color = "lightgrey"
-
-            ax.set_title(patch_label, color=color_dict_label[row["patch_label"]])
-
-            if row["patch_number"] != previous_active:
-                value += 1
-                previous_active = row["patch_number"]
-            ax.bar(
-                value,
-                bottom=row["site_number"],
-                height=1,
-                width=1,
-                color=color,
-                edgecolor="darkgrey",
-                linewidth=0.5,
-            )
-            ax.set_xlim(-1, selected_sites.patch_number.nunique() + 1)
-            ax.set_ylim(-0.5, reward_sites.site_number.max() + 1)
+        # Only show y-axis on leftmost panel
+        if ax == axes[0]:
             ax.set_ylabel("Site number")
-            ax.set_xlabel("Patch number")
+        else:
+            ax.set_yticks([])
 
-    fig.tight_layout()
-    plt.legend(handles=odors, loc='best', bbox_to_anchor=(0.75, 1), fontsize=12, ncol=1)
-
+    fig.legend(
+        handles=legend_handles,
+        loc='upper right',
+        bbox_to_anchor=(1.0, 0.95),
+        fontsize=10, ncol=1,
+        bbox_transform=fig.transFigure
+    )
+    fig.tight_layout(rect=[0, 0, 0.82, 1])
     sns.despine()
 
-    if save != False:
+    if save:
         save.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
     else:
         plt.show()
     plt.close(fig)
@@ -580,6 +479,7 @@ def speed_traces_value(
 ):
 
     n_odors = len(trial_summary.patch_label.unique())
+    print(n_odors)
     fig, ax = plt.subplots(
         n_odors, 5, figsize=(18, n_odors * 5), sharex=True, sharey=True
     )
@@ -682,7 +582,6 @@ def speed_traces_value(
     if save != False:
         save.savefig(fig)
         plt.close(fig)
-
 
 def speed_traces_efficient(
     trial_summary: pd.DataFrame,
@@ -849,18 +748,18 @@ def speed_traces_efficient(
         save.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
-
 def preward_estimates(
     reward_sites,
     minimum_size: int = 2,
-    color_dict_label: dict = {
-        "Ethyl Butyrate": "#d95f02",
-        "Alpha-pinene": "#1b9e77",
-        "Amyl Acetate": "#7570b3",
-    },
+    color_dict_label: dict = None,
     save: bool = False,
 ):
 
+    if color_dict_label is None:
+        unique_labels = reward_sites["patch_label"].unique()
+        _color_pool = cycle([color1, color2, color3, color4, color5, color6, color7, color8, color9])
+        color_dict_label = {label: next(_color_pool) for label in unique_labels}
+        
     summary = reward_sites.groupby(["patch_number", "patch_label"]).agg(
         {
             "is_reward": "sum",
@@ -974,19 +873,20 @@ def preward_estimates(
         plt.show()
         plt.close(fig)
 
-
 def velocity_traces_odor_entry(
     trial_summary,
     window: tuple = (-0.5, 2),
     max_range: int = 60,
-    color_dict_label: dict = {
-        "Ethyl Butyrate": "#d95f02",
-        "Alpha-pinene": "#1b9e77",
-        "Amyl Acetate": "#7570b3",
-    },
+    color_dict_label: dict = None,
     mean: bool = False,
     save: bool = False,
 ):
+    
+    if color_dict_label is None:
+        unique_labels = trial_summary["patch_label"].unique()
+        _color_pool = cycle([color1, color2, color3, color4, color5, color6, color7, color8, color9])
+        color_dict_label = {label: next(_color_pool) for label in unique_labels}
+        
     """Plots the speed traces for each odor label condition"""
     n_odors = trial_summary.patch_label.unique()
     
@@ -1073,9 +973,13 @@ def velocity_traces_odor_entry(
     plt.close(fig)
 
 def summary_withinsession_values(reward_sites, 
-                                 color_dict_label = {'Ethyl Butyrate': '#d95f02', 'Alpha-pinene': '#1b9e77', 'Amyl Acetate': '#7570b3',
-                                                     '2-Heptanone' : '#1b9e77', 'Methyl Acetate': '#d95f02', 'Fenchone': '#7570b3', '2,3-Butanedione': '#e7298a'}, 
+                                 color_dict_label: dict = None, 
                                  save=None):
+
+    if color_dict_label is None:
+        unique_labels = reward_sites["patch_label"].unique()
+        _color_pool = cycle([color1, color2, color3, color4, color5, color6, color7, color8, color9])
+        color_dict_label = {label: next(_color_pool) for label in unique_labels}
 
     fig, ax = plt.subplots(3,2,figsize=(16,10), sharex=True)
 
@@ -1151,7 +1055,7 @@ def trial_collection(
 
     """
     trial_list = []
-    samples_per_second = np.around(np.mean(continuous_data.index.diff().dropna()), 3)
+    samples_per_second = 0.004
     
     # Iterate through reward sites and align the continuous data to whatever value was chosen. If aligned is used, it will align to any of the columns with time values.
     # If align is empty, it will align to the index, which in the case of the standard reward sites is the start of the odor site.
@@ -1213,20 +1117,21 @@ def trial_collection(
             else:
                 trial_average[taken_col] = trial
         else:
+            print(f"Length mismatch for reward site at index {start_reward}: trial length {len(trial)} vs times length {len(trial_average['times'])}. Skipping this trial.")
             continue
             
         # Rewrites all the columns in the reward_sites to be able to segment the chosen traces in different values
         for column in reward_sites.columns:
             trial_average[column] = np.repeat(row[column], len(trial))
-        
+            
         trial_list.append(trial_average)
+
     if (len(trial_list) == 0):
         print('No trials collected, check the parameters of the function')
         return pd.DataFrame(columns=['times', 'time_reference', taken_col] + list(reward_sites.columns))
     else:
         trial_summary = pd.concat(trial_list, ignore_index=True)
         return trial_summary
-
 
 def trial_collection_distance(
     reward_sites: pd.DataFrame,
@@ -1338,35 +1243,43 @@ def trial_collection_distance(
 
     return trial_summary
 
-
 def raster_with_velocity(
     active_site: pd.DataFrame,
     stream_data: pd.DataFrame,
+    color_dict_label: dict = None,
     save = False,
-    color_dict_label: dict = {
-        "Ethyl Butyrate": "#d95f02",
-        "Alpha-pinene": "#1b9e77",
-        "Amyl Acetate": "#7570b3",
-    },
     with_velocity: bool = True,
-    barplots: bool = True,
+    barplots: bool = True
 ):
             
+    _color_pool = cycle([color1, color2, color3, color4, color5, color6, color7, color8, color9])    
+    if color_dict_label is None:
+        # Build color_dict_label dynamically from the actual labels in your data
+        unique_labels = active_site["patch_label"].unique()
+        color_dict_label = {label: next(_color_pool) for label in unique_labels}
+
     test_df = active_site.groupby('patch_number').agg({'time_since_entry': 'min', 'patch_onset': 'mean','exit_epoch' : 'max'})
     test_df.reset_index(inplace=True)
     test_df.fillna(15, inplace=True)   
-    if test_df.patch_number.nunique() <= 1:
+    
+    if len(test_df) <= 1:
         print('Not enough patches to plot raster with velocity')
         return
     
     trial_summary = trial_collection(test_df, stream_data.encoder_data, aligned='patch_onset', cropped_to_length='patch')
-
+    if len(trial_summary) == 0 or trial_summary['speed'].dropna().empty:
+        print('No velocity data available for this session')
+        return
+    
     n_patches = active_site.patch_number.nunique()
     n_max_stops = active_site.site_number.max() + 1
     fig, ax1 = plt.subplots(figsize=(15+ n_max_stops/2, n_patches/2))
     ax2 = ax1.twinx()
 
-    max_speed = np.quantile(trial_summary['speed'],0.99)
+    velocity_clean = trial_summary['speed'].dropna()
+    max_speed = np.quantile(velocity_clean, 0.99)
+    
+    print('Max speed for y-axis limit:', max_speed)
     for index, row in active_site.iterrows():
         if row['label'] == 'InterPatch':
             color = '#b3b3b3'
@@ -1378,23 +1291,29 @@ def raster_with_velocity(
         if row['label'] == 'OdorSite':
             if row['site_number'] == 0:
                 ax1.scatter(0, row.patch_number, color=color_dict_label[row.patch_label], marker='s', s=60, edgecolor='black', linewidth=0.0)
-
             if row["is_reward"] == 1 and row["is_choice"] == True:
                 color = "steelblue"
+                ax1.scatter(row.choice_cue_time - row.patch_onset, row.patch_number,
+                color='red', marker='s', s=n_patches*0.5, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
+                ax1.scatter(row.reward_onset_time - row.patch_onset, row.patch_number,
+                color='blue', marker='o', s=n_patches*0.5, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
             elif row["is_reward"] == 0 and row["is_choice"] == True:
                 color = "pink"
+                ax1.scatter(row.choice_cue_time - row.patch_onset, row.patch_number,
+                color='red', marker='s', s=n_patches*0.5, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
             else:
                 color = 'yellow'
                 
         if barplots:
-            ax1.barh(int(row['patch_number']), left=row.time_since_entry, height=0.85, width=row.duration_epoch, color=color,  linewidth=0.5)
+            ax1.barh(int(row['patch_number']), left=row.time_since_entry, height=0.85,
+                    width=row.duration_epoch, color=color, linewidth=0.5, alpha=0.8)
         
         if with_velocity:
-            if row['time_since_entry'] <0:
+            if row['time_since_entry'] < 0:
                 current_trial = trial_summary[trial_summary['patch_number'] == row['patch_number']]
-
-                ax2.plot(current_trial['times'], current_trial['speed']+(max_speed*(row['patch_number']))+max_speed/1.8, color='black', linewidth=0.8, alpha=0.8)
-                ax2.set_ylim(0, max_speed*(active_site['patch_number'].max()+2))
+                ax2.plot(current_trial['times'], current_trial['speed'] + (max_speed * (row['patch_number'])) + max_speed / 1.8,
+                        color='black', linewidth=0.8, alpha=0.8)
+                ax2.set_ylim(0, max_speed * (active_site['patch_number'].max() + 2))
 
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
@@ -1412,6 +1331,8 @@ def raster_with_velocity(
         time_right = active_site.groupby('patch_number').time_since_entry.max().max()
       
     ax1.set_xlim(time_left, time_right)
+    ax1.yaxis.set_major_locator(plt.MultipleLocator(5))
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: int(x) if x == int(x) else ''))
     
     # Create legend
     handles, labels = ax1.get_legend_handles_labels()
@@ -1423,8 +1344,7 @@ def raster_with_velocity(
         plt.close(fig)
     else:
         plt.show()
-        return fig
-
+        plt.close(fig)
 
 def pstay_past_no_rewards(reward_sites, config, save=False, summary: bool = False):
     odor_label_list = reward_sites["odor_label"].unique()
