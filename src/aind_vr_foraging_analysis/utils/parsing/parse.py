@@ -4,12 +4,14 @@ from os import PathLike
 from pathlib import Path
 from typing import Dict
 
+from cv2 import data
 import numpy as np
 import pandas as pd
 
 import aind_vr_foraging_analysis.data_io as data_io
 from aind_vr_foraging_analysis.utils import processing
 from packaging.version import Version
+from scipy.ndimage import gaussian_filter1d
 
 _SECONDS_PER_TICK = 32e-6
 _payloadtypes = {
@@ -111,28 +113,35 @@ class TaskSchemaProperties:
             self.reward_specification = "reward_specification"
             self.odor_specifications = "odor_specification"
             self.odor_index = "index"
-            
+
         elif (
             "environment_statistics" in self._data["config"].streams[self.tasklogic].data or 
             "task_parameters" in self._data["config"].streams[self.tasklogic].data
         ):
-
             self.environment = "environment_statistics"
             self.reward_specification = "reward_specification"
             self.odor_specifications = "odor_specification"
             self.odor_index = "index"
 
         else:
-            print('here')
             self.environment = "environmentStatistics"
             self.reward_specification = "rewardSpecifications"
             self.odor_specifications = "odorSpecifications"
             self.odor_index = "odorIndex"
 
-        if "task_parameters" in self._data["config"].streams[self.tasklogic].data:
+        if version >= Version("1.0.0"):
+            patches = []
+            for i, blocks in enumerate(self._data["config"].streams['tasklogic_input'].data["task_parameters"][self.environment]['blocks']):
+                if len(blocks['environment']['patches']) > 0:
+                    patches.extend(blocks['environment']['patches'])
+                else:
+                    patches.extend(blocks['environment']['patches'][i])
+            self.patches = patches
+            
+        elif "task_parameters" in self._data["config"].streams[self.tasklogic].data:
             if 'blocks' in self._data["config"].streams[self.tasklogic].data["task_parameters"][self.environment].keys():
                 patches = []
-                for i, blocks in enumerate(self._data["config"].streams['tasklogic_input'].data["task_parameters"]['environment']['blocks']):
+                for i, blocks in enumerate(self._data["config"].streams['tasklogic_input'].data["task_parameters"][self.environment]['blocks']):
                     if len(blocks['environment_statistics']['patches']) > 0:
                         patches.extend(blocks['environment_statistics']['patches'])
                     else:
@@ -158,6 +167,7 @@ class ContinuousData:
             self.rig = "rig_input"
         else:
             self.rig = "Rig"
+            
         self.data["config"].streams[self.rig].load_from_file()
 
         if "schema_version" in self.data["config"].streams[self.rig].data:
@@ -175,7 +185,7 @@ class ContinuousData:
             # self.succesful_wait = self.succesfull_wait_loading()
             self.sniff_data_loading()
             self.position_loading()
-            self.odor_triggers = odor_data_harp_olfactometer(self.data)
+            # self.odor_triggers = odor_data_harp_olfactometer(self.data)
 
     def position_loading(self):
         position = self.data['operation_control'].streams.CurrentPosition.data
@@ -185,7 +195,22 @@ class ContinuousData:
         
     def encoder_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
-        if self.current_version >= Version("0.4.0"):
+        print(self.current_version)
+        if self.current_version >= Version("1.0.0rc1"):
+            self.data["harp_treadmill"].streams.SensorData.load_from_file()
+            sensor_data = self.data["harp_treadmill"].streams.SensorData.data
+
+            wheel_size = self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["wheel_diameter"]
+            PPR = self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["pulses_per_revolution"]
+            invert_direction = (
+                self.data["config"].streams[self.rig].data["harp_treadmill"]["calibration"]["invert_direction"]
+            )
+
+            converter = wheel_size * np.pi / PPR * (-1 if invert_direction else 1)
+            sensor_data["Encoder"] = sensor_data.Encoder.diff()
+            dispatch = 250
+            
+        elif self.current_version >= Version("0.4.0"):
             self.data["harp_treadmill"].streams.SensorData.load_from_file()
             sensor_data = self.data["harp_treadmill"].streams.SensorData.data
 
@@ -1202,6 +1227,9 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         DataFrame containing the  active sites
 
     """
+    # version = Version(data["config"].streams.tasklogic_input.data["version"])
+    # print(f"Parsing data from version {version}")
+    
     data["software_events"].streams.ActiveSite.load_from_file()
     active_site_temp = data["software_events"].streams.ActiveSite.data
 
@@ -1250,33 +1278,38 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     df_patch.index = patches.index
 
     df_patch["patch_number"] = np.arange(len(df_patch))
-    if "odor_specification.index" in df_patch.columns:
-        df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label"}, inplace=True)
+    if "odor_specification.index" in df_patch.columns or "odor_specification" in df_patch.columns:
+        df_patch.rename(columns={"label": "patch_label", "odor_specification.index": "odor_label", "odor_specification": "odor_label"}, inplace=True)
         df_patch = df_patch[["patch_label", "patch_number", "odor_label"]]
     else: 
         df_patch.rename(columns={"label": "odor_label"}, inplace=True)
         df_patch = df_patch[["patch_number", "odor_label"]]
         df_patch["patch_label"] = df_patch["odor_label"]
-        
+    
     all_epochs = pd.merge(active_site, df_patch, on="patch_number", how="left")
     all_epochs.index = active_site.index
-    
 # ------------
     try:
         if 'calibration' in data["config"].streams.rig_input.data["harp_olfactometer"]:
             if data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"] is not None:
                 # Create a mapping dictionary from the nested structure
-                mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
-
-                # Replace numbers in the dataframe column with the corresponding odorant values
-                all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
-                
+                if 'input' in data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]:
+                    mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['input']['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
+                    # Replace numbers in the dataframe column with the corresponding odorant values
+                    all_epochs['odor_label'] = all_epochs['odor_label'].replace(mapping)
+                else:
+                    mapping = {i: data["config"].streams.rig_input.data["harp_olfactometer"]["calibration"]['channel_config'][str(i)]['odorant'] for i in range(0, 3)}
+                    all_epochs['odor_label'] = all_epochs['odor_label'].apply(
+                        lambda x: mapping[int(np.argmax(x))] if isinstance(x, list) else mapping[int(x)]
+                    )
             else:
                 all_epochs["odor_label"] = all_epochs['patch_label']   
         else:
             all_epochs["odor_label"] = all_epochs['patch_label']
     except:
+        pass
         all_epochs["odor_label"] = all_epochs['patch_label']
+
 # ----------------
 
     # Count 'OdorSite' occurrences within each group
@@ -1287,7 +1320,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     ## Add last timestamp
     try:
         data["config"].streams.endsession.load_from_file()
-        all_epochs.stop_time.iloc[-1] = data['config'].streams.endsession.data['timestamp']    
+        all_epochs.loc[all_epochs.index[-1], 'stop_time'] = data['config'].streams.endsession.data['timestamp']
     except json.JSONDecodeError:
         print('Removing last epoch because of empty endsession file')
         all_epochs = all_epochs.iloc[:-1]
@@ -1363,47 +1396,46 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         # Make sure both DataFrames are sorted by index
         reward_sites = reward_sites.sort_index()
         patch_stats = patch_stats.sort_index()
-
         stopped_sites = reward_sites.loc[reward_sites['is_choice']==True]
+        
         # Perform merge_asof on the index
         merged = pd.merge_asof(
             stopped_sites,
             patch_stats,
             left_index=True,
             right_index=True,
-            direction='forward'
+            direction='nearest'
         )
         
         merged = pd.concat([reward_sites.loc[reward_sites['is_choice']==False], merged], axis=0).sort_index()
+        print('Merged reward sites with PatchStateAtReward stream')
         
-    if "GlobalPatchState" in data['software_events'].streams:
+    # if "GlobalPatchState" in data['software_events'].streams:
 
-            gs = pd.json_normalize(
-                data['software_events'].streams.GlobalPatchState.data['data']
+        gs = pd.json_normalize(
+            data['software_events'].streams.GlobalPatchState.data['data']
+        )
+        gs.index = data['software_events'].streams.GlobalPatchState.data.index
+        gs = gs.drop(columns=['PatchId']).rename(
+            columns={
+                'Amount': 'reward_amount',
+                'Available': 'reward_available',
+                'Probability': 'reward_probability',
+            }
+        )
+        merged_gs = pd.merge_asof(
+            merged.sort_index(),
+            gs.sort_index(),
+            left_index=True,
+            right_index=True,
+            direction='backward',
+            suffixes=('', '_global')
+        )
+        for col in ['reward_amount', 'reward_available', 'reward_probability']:
+            merged[col] = merged[col].combine_first(
+                merged_gs[f"{col}_global"]
             )
-            gs.index = data['software_events'].streams.GlobalPatchState.data.index
-            gs = gs.drop(columns=['PatchId']).rename(
-                columns={
-                    'Amount': 'reward_amount',
-                    'Available': 'reward_available',
-                    'Probability': 'reward_probability',
-                }
-            )
-
-            merged_gs = pd.merge_asof(
-                merged.sort_index(),
-                gs.sort_index(),
-                left_index=True,
-                right_index=True,
-                direction='backward',
-                suffixes=('', '_global')
-            )
-
-            for col in ['reward_amount', 'reward_available', 'reward_probability']:
-                merged[col] = merged[col].combine_first(
-                    merged_gs[f"{col}_global"]
-                )
-                
+        print('Merged reward sites with GlobalPatchState stream')
     else:
         # Add the reward characteristics columns
         patch_stats = pd.DataFrame()
@@ -1429,7 +1461,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
             right_index=True,
             direction='backward'
         )
-
+        print('Merged reward sites with else streams')
+        
     assert len(merged) == len(reward_sites), "Length mismatch after merge"
 
     # Concatenate the results to all_epochs
@@ -1439,7 +1472,33 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     #     reward_sites = RewardFunctions(data, reward_sites).calculate_reward_functions()
     #     all_epochs = pd.concat([all_epochs.loc[all_epochs.label != 'OdorSite'], reward_sites], axis=0).sort_index()
     #     all_epochs.loc[all_epochs.label == 'Gap', 'label'] = 'InterSite'
-        
+    
+    
+    ### To-Do fix this segment
+    ## Add blocks
+    # block = pd.json_normalize(data['software_events'].streams.Block.data['data'])
+
+    # block.index = data['software_events'].streams.Block.data.index
+    # block.reset_index(inplace=True)
+    # block['block'] = range(len(block))
+
+    # # Sort both by their time column (required for merge_asof)
+    # block_df = block.sort_values('Seconds')
+    # all_epochs = all_epochs.sort_values('start_time')
+
+    # # Merge: each row in other_df gets the set_number of the last patches_df row
+    # # whose timestamp is <= other_df's timestamp
+    # all_epochs = pd.merge_asof(
+    #     all_epochs,
+    #     block_df[['Seconds', 'block']],
+    #     left_on='start_time',
+    #     right_on='Seconds',
+    #     direction='backward'  # assigns set from the most recent preceding patch onset
+    # )
+    
+    # all_epochs.rename(columns={'Seconds': 'block_seconds'}, inplace=True)
+    # all_epochs.drop(columns=['block_seconds'], inplace=True)
+    
     return all_epochs
 
 ## ------------------------------------------------------------------------- ##
