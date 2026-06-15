@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import ttest_rel, ttest_ind
+import matplotlib.patches as mpatches
 
 def compute_lick_rate(
     df,
@@ -96,11 +97,18 @@ def plot_lick_rate(
         fig, ax = plt.subplots(figsize=(5, 4))
     if group_labels is None:
         group_labels = sorted(results.keys())
-    # --- Resolve palette ---
-    if palette is None:
-        colors = sns.color_palette('tab10', len(group_labels))
+        
+        
+    if len(group_labels) == 1:
+        # no grouping → all black regardless of palette
+        colors = ["black"] * len(group_labels)
+    elif palette is None:
+        # grouping but no palette → default Set1
+        colors = sns.color_palette('Set1', len(group_labels))
     elif isinstance(palette, str):
         colors = sns.color_palette(palette, len(group_labels))
+    elif isinstance(palette, dict):
+        colors = [palette[label] for label in group_labels]
     else:
         colors = palette
 
@@ -183,7 +191,7 @@ def plot_lick_rate(
                     va='center', ha='left', fontsize=7, color='black')
 
     ax.axvline(0, color='black', linestyle='--', linewidth=1)
-    ax.set_xlabel('Time from event (s)')
+    ax.set_xlabel('Time from reward (s)')
     ax.set_ylabel('Lick rate (licks/s)')
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize =8)
     sns.despine(ax=ax)
@@ -198,6 +206,7 @@ def plot_lick_count_by_condition(
     save=False,
     ax=None,
     window: tuple = None,
+    show_legend=True,
 ):
     if group_labels is None:
         group_labels = sorted(plot[group_var].unique())
@@ -258,7 +267,6 @@ def plot_lick_count_by_condition(
         color='black', linewidth=2.5, marker='o',
         markersize=5, zorder=20,
     )
-
     # --- Significance ---
     g1 = plot.loc[plot[group_var] == group_labels[0], variable].dropna()
     g2 = plot.loc[plot[group_var] == group_labels[-1], variable].dropna()
@@ -269,9 +277,9 @@ def plot_lick_count_by_condition(
 
     if p < 0.001:  sig = '***'
     elif p < 0.01: sig = '**'
-    elif p < 0.02: sig = '*'
+    elif p < 0.05: sig = '*'
     else:          sig = 'ns'
-
+    print(f'{group_labels[0]} vs {group_labels[-1]}: p={p:.3g} ({sig})')
     y_bar, h = y_top * 1.05, y_top * 0.025
     x_left  = 0
     x_right = len(group_labels) - 1
@@ -283,10 +291,20 @@ def plot_lick_count_by_condition(
     # --- Formatting ---
     ax.set_ylabel(y_label)
     ax.set_xlabel('')
-    # ax.set_ylim(0, y_bar + h + y_top * 0.05)
-    ax.tick_params(axis='x', rotation=45)
+    ax.set_xticks([])
+    ax.set_xticklabels([])
     sns.despine(ax=ax, bottom=True)
-
+    
+# --- Legend ---
+    if show_legend:
+        if isinstance(palette, dict):
+            colors = [palette[label] for label in group_labels]
+        else:
+            colors = sns.color_palette(palette, n_colors=len(group_labels))
+        handles = [mpatches.Patch(color=colors[i], label=group_labels[i])
+                   for i in range(len(group_labels))]
+        ax.legend(handles=handles, frameon=False, bbox_to_anchor=(1.05, 1), loc='upper left')
+        
     if ax.get_figure() is not None and save:
         ax.get_figure().savefig(save, format='pdf')
     elif not save and ax is None:
