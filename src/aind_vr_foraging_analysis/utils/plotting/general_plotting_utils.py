@@ -1249,6 +1249,8 @@ def raster_with_velocity(
     color_dict_label: dict = None,
     save = False,
     with_velocity: bool = True,
+    with_licks: bool = True,
+    with_odor_triggers: bool = True,
     barplots: bool = True
 ):
             
@@ -1271,6 +1273,16 @@ def raster_with_velocity(
         print('No velocity data available for this session')
         return
     
+    lick_summary = trial_collection(test_df, stream_data.lick_onset, aligned='patch_onset', cropped_to_length='patch', taken_col='Channel0', continuous=False)
+    if len(lick_summary) == 0:
+        print('No lick data available for this session')
+        with_licks = False
+
+    odor_summary = trial_collection(test_df, stream_data.odor_triggers, aligned='patch_onset', cropped_to_length='patch', taken_col='odor', continuous=False)
+    if len(odor_summary) == 0:
+        print('No odor triggers')
+        with_odor_triggers = False
+        
     n_patches = active_site.patch_number.nunique()
     n_max_stops = active_site.site_number.max() + 1
     fig, ax1 = plt.subplots(figsize=(15+ n_max_stops/2, n_patches/2))
@@ -1294,13 +1306,13 @@ def raster_with_velocity(
             if row["is_reward"] == 1 and row["is_choice"] == True:
                 color = "steelblue"
                 ax1.scatter(row.choice_cue_time - row.patch_onset, row.patch_number,
-                color='red', marker='s', s=n_patches*0.5, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
+                color='red', marker='s', s=n_patches*0.2, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
                 ax1.scatter(row.reward_onset_time - row.patch_onset, row.patch_number,
-                color='blue', marker='o', s=n_patches*0.5, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
+                color='blue', marker='o', s=n_patches*0.2, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Reward')
             elif row["is_reward"] == 0 and row["is_choice"] == True:
                 color = "pink"
                 ax1.scatter(row.choice_cue_time - row.patch_onset, row.patch_number,
-                color='red', marker='s', s=n_patches*0.5, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
+                color='red', marker='s', s=n_patches*0.2, zorder=5, edgecolor='black', linewidth=0.5, alpha=0.9, label='Tone')
             else:
                 color = 'yellow'
                 
@@ -1314,7 +1326,23 @@ def raster_with_velocity(
                 ax2.plot(current_trial['times'], current_trial['speed'] + (max_speed * (row['patch_number'])) + max_speed / 1.8,
                         color='black', linewidth=0.8, alpha=0.8)
                 ax2.set_ylim(0, max_speed * (active_site['patch_number'].max() + 2))
+                
+        if with_licks:
+            if row['time_since_entry'] < 0:
+                current_trial = lick_summary[lick_summary['patch_number'] == row['patch_number']]
+                ax1.scatter(current_trial['times'], current_trial['patch_number'],
+                        color='black', linewidth=0.8, alpha=0.8, marker='|', s = n_patches*0.5)
 
+        if with_odor_triggers:
+            if row['time_since_entry'] < 0:
+                current_trial = odor_summary[odor_summary['patch_number'] == row['patch_number']]
+                onset_trials = current_trial[current_trial['odor'] == 1]
+                offset_trials = current_trial[current_trial['odor'] == 0]
+                ax1.scatter(onset_trials['times'], onset_trials['patch_number'],
+                        color='orange', linewidth=2, alpha=1, marker='|', s = n_patches*1, zorder=10, label='Odor on')
+                ax1.scatter(offset_trials['times'], offset_trials['patch_number'],
+                        color='purple', linewidth=2, alpha=1, marker='|', s = n_patches*1, zorder=10, label='Odor off')
+                
     ax1.set_xlabel("Time (s)")
     ax1.set_ylabel("Patch number")
     sns.despine()
