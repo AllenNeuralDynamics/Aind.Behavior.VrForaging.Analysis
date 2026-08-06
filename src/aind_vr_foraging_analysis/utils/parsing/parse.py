@@ -186,13 +186,21 @@ class ContinuousData:
             self.sniff_data_loading()
             self.position_loading()
             # self.odor_triggers = odor_data_harp_olfactometer(self.data)
+            self.odor_triggers_simple_loading()
 
     def position_loading(self):
         position = self.data['operation_control'].streams.CurrentPosition.data
         self.position_data = position
-        
         return self.position_data
-        
+    
+    def odor_triggers_simple_loading(self):
+        self.data['harp_olfactometer'].streams.EndValveState.load_from_file()
+        olfas = self.data['harp_olfactometer'].streams.EndValveState.data
+        olfas = pd.DataFrame(olfas['EndValve0'])
+        olfas.rename(columns={'EndValve0': 'odor'}, inplace=True)
+        self.odor_triggers = olfas
+        return self.odor_triggers
+    
     def encoder_loading(self, parser: str = "filter"):
         ## Load data from encoder efficiently
         print(self.current_version)
@@ -312,8 +320,8 @@ class ContinuousData:
         if "harp_lickometer" in self.data:
             self.data["harp_lickometer"].streams.LickState.load_from_file()
             licks = self.data["harp_lickometer"].streams.LickState.data["Channel0"] == True
-            lick_onset = licks.loc[licks == True]
-            lick_offset = licks.loc[licks == False]
+            lick_onset = pd.DataFrame(licks.loc[licks == True])
+            lick_offset = pd.DataFrame(licks.loc[licks == False])
 
         else:
             di_state = self.data["harp_behavior"].streams.DigitalInputState.data["DIPort0"]
@@ -1230,6 +1238,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     # version = Version(data["config"].streams.tasklogic_input.data["version"])
     # print(f"Parsing data from version {version}")
     
+    print(data)
     data["software_events"].streams.ActiveSite.load_from_file()
     active_site_temp = data["software_events"].streams.ActiveSite.data
 
@@ -1333,7 +1342,8 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
 
     # Recover water delivery
     water = ContinuousData(data, load_continuous=False).water_valve_loading()[0]
-
+    # forced = data["software_events"].streams.ForceGiveReward.data['data']
+    
     if "WaitRewardOutcome" in data["software_events"].streams:
         # Successfull waits
         data["software_events"].streams.WaitRewardOutcome.load_from_file()
@@ -1352,6 +1362,7 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
     stop_cues = []
     reward_onsets = []
     successful_waits = []
+    # forced_onsets = []
     reward_sites = all_epochs[all_epochs["label"] == "OdorSite"]
     if reward_sites.empty:
         print("No reward sites found")
@@ -1365,16 +1376,19 @@ def parse_dataframe(data: dict) -> pd.DataFrame:
         # Find slices based on the current and next indices
         choice = choiceFeedback[(choiceFeedback.index >= current_idx) & (choiceFeedback.index < next_idx)]
         reward_in_site = water[(water.index >= current_idx) & (water.index < next_idx)]
+        # f_reward = forced[(forced.index >= current_idx) & (forced.index < next_idx)]
         waits = succesfull_wait[(succesfull_wait.index >= current_idx) & (succesfull_wait.index < next_idx)]
 
         # Store the first relevant index or NaN
         stop_cues.append(choice.index[0] if len(choice) > 0 else np.nan)
         reward_onsets.append(reward_in_site.index[0] if len(reward_in_site) > 0 else np.nan)
+        # forced_onsets.append(f_reward.index[0] if len(f_reward) > 0 else np.nan)
         successful_waits.append(waits.index[0] if len(waits) > 0 else np.nan)
 
     # Assign the results to the DataFrame
     reward_sites["choice_cue_time"] = stop_cues
     reward_sites["reward_onset_time"] = reward_onsets
+    # reward_sites["forced_reward_time"] = forced_onsets
     reward_sites["succesful_wait_time"] = successful_waits
     reward_sites["succesful_wait_time"] = reward_sites["reward_onset_time"].combine_first(reward_sites["succesful_wait_time"])
 
